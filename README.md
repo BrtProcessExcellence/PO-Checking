@@ -34,3 +34,22 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+## Microsoft sign-in
+
+The app requires Microsoft Entra ID sign-in before the checker can be opened. Copy `.env.example` to `.env.local` and set these values:
+
+```env
+AUTH_SECRET=generate-a-long-random-value
+AUTH_MICROSOFT_ENTRA_ID_ID=your-application-client-id
+AUTH_MICROSOFT_ENTRA_ID_SECRET=your-client-secret
+AUTH_MICROSOFT_ENTRA_ID_TENANT_ID=your-tenant-id
+```
+
+In the Microsoft Entra app registration, add this web redirect URI:
+
+```text
+http://localhost:3000/api/auth/callback/microsoft-entra-id
+```
+
+Use the production domain instead of `localhost` when deploying.

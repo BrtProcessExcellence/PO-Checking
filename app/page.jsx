@@ -1,0 +1,1470 @@
+"use client";
+
+import React, { useMemo, useState, useCallback } from 'react';
+import * as pdfjsLib from 'pdfjs-dist/legacy/build/pdf';
+import Tesseract from 'tesseract.js';
+import * as XLSX from 'xlsx';
+import { addPdfPageResult, sortPdfResultsByPage } from '../lib/pdf-results.mjs';
+import { Button } from '../components/ui/button';
+import { Card } from '../components/ui/card';
+import { Checkbox } from '../components/ui/checkbox';
+import { Select } from '../components/ui/select';
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+
+// ================== Helpers ==================
+const POSTAL_DB = {
+  '20150': { tambon: 'หนองปลาไหล', amphoe: 'บางละมุง', changwat: 'ชลบุรี' },
+  '20260': { tambon: 'บางละมุง', amphoe: 'บางละมุง', changwat: 'ชลบุรี' },
+  '10110': { tambon: 'คลองตัน', amphoe: 'วัฒนา', changwat: 'กรุงเทพมหานคร' },
+  '10900': { tambon: 'ลาดยาว', amphoe: 'จตุจักร', changwat: 'กรุงเทพมหานคร' },
+  '10310': { tambon: 'บางกะปิ', amphoe: 'ห้วยขวาง', changwat: 'กรุงเทพมหานคร' },
+  '20000': { tambon: 'บางปลาสร้อย', amphoe: 'เมืองชลบุรี', changwat: 'ชลบุรี' }
+};
+
+const ITEM_CODE_REGEX = /\b[A-Z0-9]{2,}[-\/]?[A-Z0-9]{2,}\b/g;
+const PREVIEW_SCALE = 1.4;
+const OCR_SCALE = 5.0;
+const OCR_LOW_CONFIDENCE = 60;
+
+const CUSTOMER_EXCEL_COLUMNS = {
+  Lotus: {
+    ship: ['Ship-to Party', 'Ship-to party', 'Ship-to-Party Name1', 'ส่งสินค้าไปที่', 'Ship To Address'],
+    description: ['Product description', 'Material Description', 'รายการ', 'Description']
+  },
+  'CJ Express': {
+    ship: ['สถานที่ส่งของ', 'Ship-to Address', 'Ship To Address'],
+    description: ['ชื่อสินค้า', 'Product Description', 'Description']
+  },
+  'CP All': {
+    delivery: ['นำส่ง', 'Delivery'],
+    address: ['Ship-to Party', 'Ship-to party', 'ที่อยู่', 'Address', 'Ship-to Address'],
+    description: ['Product description', 'Material Description', 'รายการ', 'Description']
+  },
+  Makro: {
+    ship: ['Ship-to Party', 'Ship-to-Party Name1', 'ส่งสินค้าไปที่', 'Ship To Address'],
+    description: ['Material Description', 'Product description', 'รายการ', 'Description']
+  }
+};
+
+function repairExcelText(value) {
+  const text = String(value ?? '');
+  const hasMojibakeMarker = /(?:à|เธ|เน)[\u0e00-\u0e7f]|[\u0080-\u009f]/.test(text);
+  if (!text || !hasMojibakeMarker) return text;
+
+  const cp1252ToByte = {
+    0x20AC: 0x80, 0x201A: 0x82, 0x0192: 0x83, 0x201E: 0x84, 0x2026: 0x85, 0x2020: 0x86, 0x2021: 0x87,
+    0x02C6: 0x88, 0x2030: 0x89, 0x0160: 0x8A, 0x2039: 0x8B, 0x0152: 0x8C, 0x017D: 0x8E, 0x2018: 0x91,
+    0x2019: 0x92, 0x201C: 0x93, 0x201D: 0x94, 0x2022: 0x95, 0x2013: 0x96, 0x2014: 0x97, 0x02DC: 0x98,
+    0x2122: 0x99, 0x0161: 0x9A, 0x203A: 0x9B, 0x0153: 0x9C, 0x017E: 0x9E, 0x0178: 0x9F
+  };
+
+  const bytes = new Uint8Array(text.length);
+  for (let i = 0; i < text.length; i++) {
+    const codePoint = text.codePointAt(i);
+    if (codePoint >= 0x0e01 && codePoint <= 0x0e5b) {
+      bytes[i] = codePoint - 0x0e00 + 0xa0;
+    } else if (cp1252ToByte[codePoint] !== undefined) {
+      bytes[i] = cp1252ToByte[codePoint];
+    } else {
+      bytes[i] = codePoint & 0xff;
+    }
+  }
+
+  try {
+    const repaired = new TextDecoder('utf-8').decode(bytes);
+    return repaired.replace(/\ufffd/g, '');
+  } catch {
+    return text;
+  }
+}
+
+function normalizeExcelHeader(value) {
+  return repairExcelText(value).toLowerCase().replace(/[\s_-]+/g, '');
+}
+const OCR_GLYPH_MAP = {
+  '\u042f': 'เ', // (ตัวอย่างเผื่อ) ไม่ใช้จริง — ลบได้
+  'ѯ': 'เ',
+  'Ѭ': 'ู',
+  '\u0434': 'ก', // д : จѼาдัด = จำกัด, ขอนแд่น = ขอนแก่น
+  '\u0435': 'ข', // е : แеวง = แขวง, ѯеต = เขต, ѯลеที่ = เลขที่, ส่งеอง = ส่งของ
+};
+delete OCR_GLYPH_MAP['\u042f'];
+
+function normalizePdfText(rawText) {
+  return normalizeOcrArtifacts(rawText)
+    .replace(/\u0e4d\u0e32/g, '\u0e33')      // นํา -> นำ
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+// label ไทยที่ทนต่อ OCR: ช่องว่างแทรกกลางคำ (เช่น "สินค ้า") + ำ/า สลับกัน
+function loose(label) {
+  return label.split('').map(ch => (ch === 'ำ' ? '(?:ำ|า)' : ch)).join('\\s*');
+}
+
+const SEP = '\\s*[:：;-]?\\s*';
+const L = {
+  shipTo: `(?:${loose('สถานที่ส่งของ')}|${loose('สถานที่ส่งสินค้า')})`,
+  orderer: loose('ผู้สั่งซื้อ'),
+  supplier: loose('ผู้จำหน่าย'),
+  maker: loose('ผู้ผลิต'),
+  seller: loose('ผู้ขาย'),
+  phone: loose('โทรศัพท์'),
+  seq: loose('ลำดับ'),
+  code: loose('รหัส'),
+  postal: loose('ไปรษณีย์'),
+  itemName: loose('ชื่อสินค้า'),
+  sendTo: loose('ส่งสินค้าไปที่'),
+};
+const NAMSONG = 'น\\s*(?:ำ|่\\s*า|า)\\s*ส\\s*่?\\s*ง';   // นำส่ง / น่าส่ง
+const FOOTER = `อ้างถึง|หมายเหตุ|Department|${loose('ผู้อนุมัติ')}|P/R|${loose('ผู้ซื้อ')}`;
+
+const PHONE_RX = '0\\d{1,2}-?\\d{3}-?\\d{3,4}';
+function stripPhone(text) {
+  const re = new RegExp(`${L.phone}${SEP}(?:${PHONE_RX}(?:\\s*(?:ต่อ|,|/)\\s*${PHONE_RX})*)?`, 'gi');
+  return text.replace(re, ' ').replace(/\s{2,}/g, ' ').trim();
+}
+// ---------- จังหวัด ----------
+const THAI_PROVINCES = ['กรุงเทพมหานคร', 'กระบี่', 'กาญจนบุรี', 'กาฬสินธุ์', 'กำแพงเพชร', 'ขอนแก่น', 'จันทบุรี', 'ฉะเชิงเทรา', 'ชลบุรี', 'ชัยนาท', 'ชัยภูมิ', 'ชุมพร', 'เชียงราย', 'เชียงใหม่', 'ตรัง', 'ตราด', 'ตาก', 'นครนายก', 'นครปฐม', 'นครพนม', 'นครราชสีมา', 'นครศรีธรรมราช', 'นครสวรรค์', 'นนทบุรี', 'นราธิวาส', 'น่าน', 'บึงกาฬ', 'บุรีรัมย์', 'ปทุมธานี', 'ประจวบคีรีขันธ์', 'ปราจีนบุรี', 'ปัตตานี', 'พระนครศรีอยุธยา', 'พะเยา', 'พังงา', 'พัทลุง', 'พิจิตร', 'พิษณุโลก', 'เพชรบุรี', 'เพชรบูรณ์', 'แพร่', 'ภูเก็ต', 'มหาสารคาม', 'มุกดาหาร', 'แม่ฮ่องสอน', 'ยโสธร', 'ยะลา', 'ร้อยเอ็ด', 'ระนอง', 'ระยอง', 'ราชบุรี', 'ลพบุรี', 'ลำปาง', 'ลำพูน', 'เลย', 'ศรีสะเกษ', 'สกลนคร', 'สงขลา', 'สตูล', 'สมุทรปราการ', 'สมุทรสงคราม', 'สมุทรสาคร', 'สระแก้ว', 'สระบุรี', 'สิงห์บุรี', 'สุโขทัย', 'สุพรรณบุรี', 'สุราษฎร์ธานี', 'สุรินทร์', 'หนองคาย', 'หนองบัวลำภู', 'อ่างทอง', 'อำนาจเจริญ', 'อุดรธานี', 'อุตรดิตถ์', 'อุทัยธานี', 'อุบลราชธานี'];
+const PROVINCE_ALIAS = { 'กทม': 'กรุงเทพมหานคร', 'กรุงเทพ': 'กรุงเทพมหานคร', 'อยุธยา': 'พระนครศรีอยุธยา', 'โคราช': 'นครราชสีมา' };
+const PROVINCE_KEYS = [...THAI_PROVINCES, ...Object.keys(PROVINCE_ALIAS)].sort((a, b) => b.length - a.length);
+const DEST_NOT_FOUND = 'ไม่พบจังหวัดปลายทาง';
+const SOURCE_NOT_FOUND = 'ไม่พบต้นทาง';
+const ORDER_NUMBER_NOT_FOUND = 'ไม่พบเลขที่';
+
+// startsWith ทำให้ชื่อที่ถูกตัดท้าย เช่น "กรุงเทพม" ก็ยังจับได้
+function resolveProvince(word) {
+  const w = String(word || '').replace(/[ฯ.]/g, '');
+  for (const key of PROVINCE_KEYS) if (w.startsWith(key)) return PROVINCE_ALIAS[key] || key;
+  return '';
+}
+
+// รหัสไปรษณีย์ 5 หลักที่ "ยืนเดี่ยว" (ไม่ใช่ส่วนของเลขยาว/วันที่/ทศนิยม)
+function findPostalCodes(text) {
+  const out = [];
+  for (const m of text.matchAll(/\d+/g)) {
+    if (m[0].length !== 5) continue;
+    const before = text.slice(Math.max(0, m.index - 2), m.index);
+    const after = text.slice(m.index + 5, m.index + 7);
+    if (/\d[\/.,\-]$/.test(before) || /^[\/.,\-]\d/.test(after)) continue;
+    out.push({ code: m[0], index: m.index });
+  }
+  return out;
+}
+
+// เลขไปรษณีย์ -> จังหวัด: POSTAL_DB ก่อน, ไม่เจอค่อยดูคำไทยที่อยู่หน้าเลข ("ชลบุรี 20150")
+// ไม่ผ่านทั้งสองแบบ = ไม่ใช่รหัสไปรษณีย์ (กันรหัสสินค้า/รหัสสาขา 5 หลัก)
+function provinceFromPostal(code, textBefore) {
+  const rec = (typeof POSTAL_DB !== 'undefined' && POSTAL_DB) ? POSTAL_DB[code] : null;
+  if (rec && rec.changwat) return resolveProvince(rec.changwat) || rec.changwat;
+  const w = textBefore.trimEnd().match(/([ก-๙]+)$/);
+  return w ? resolveProvince(w[1]) : '';
+}
+
+function findProvinceInSlice(slice) {
+  for (const { code, index } of findPostalCodes(slice)) {
+    const province = provinceFromPostal(code, slice.slice(0, index));
+    if (province) return { province, postcode: code, end: index + 5 };
+  }
+  return null;
+}
+
+// ทางสำรอง (ไม่มีเลขไปรษณี): จ.xxx -> คำก่อนเลข 5 หลัก -> ชื่อจังหวัดตรงๆ
+function scanProvinceName(t) {
+  for (const m of t.matchAll(/(?:จ\s*\.|จังหวัด)\s*([ก-๙]+)/g)) {
+    const p = resolveProvince(m[1]); if (p) return p;
+  }
+  for (const m of t.matchAll(/([ก-๙]+)\s*\d{5}(?!\d)/g)) {
+    const p = resolveProvince(m[1]); if (p) return p;
+  }
+  for (const key of PROVINCE_KEYS) {
+    const hit = key.length <= 4
+      ? new RegExp(`(?:^|\\s|\\.)${key}(?=\\s|\\d|$)`).test(t)
+      : t.includes(key);
+    if (hit) return PROVINCE_ALIAS[key] || key;
+  }
+  return '';
+}
+
+
+// ---------- กติกาของแต่ละห้าง ----------
+const RULES_LOTUS_MAKRO = {
+  source: { label: [L.maker, L.orderer], end: `${L.sendTo}|${FOOTER}`, maxLen: 300 },
+  dest: { label: [L.sendTo], end: `${L.seq}|Page|${FOOTER}`, maxLen: 300 },
+};
+const PROVINCE_RULES = {
+  'CJ Express': {
+    source: { label: [L.supplier, L.orderer], end: `${L.shipTo}|${FOOTER}`, maxLen: 300, fallbackTop: true },
+    dest: { label: [L.shipTo], end: `${L.seq}|${L.code}(?!\\s*${L.postal})|${L.itemName}|${FOOTER}`, maxLen: 400 },
+  },
+  'CP All': {
+    source: { label: [L.seller], end: `${NAMSONG}|${FOOTER}`, maxLen: 300 },
+    dest: { label: [NAMSONG], end: `${L.seller}|${FOOTER}`, maxLen: 300 },
+  },
+  Makro: RULES_LOTUS_MAKRO,
+  Lotus: RULES_LOTUS_MAKRO,
+};
+const LEADING_CODE = /^\d{4,14}\s*/;   // รหัสผู้ขาย/สาขา/ร้านที่มาก่อนที่อยู่ (ไม่ใช่รหัสไปรษณีย์)
+
+function locateProvince(rawText, customer, side) {
+  const text = normalizePdfText(rawText);
+  const rule = (PROVINCE_RULES[customer] || RULES_LOTUS_MAKRO)[side];
+  const endRx = rule.end ? new RegExp(rule.end, 'i') : null;
+  const groups = [];
+
+  for (const label of rule.label || []) {
+    const group = [];
+    for (const m of text.matchAll(new RegExp(label + SEP, 'gi'))) {
+      const rest = text.slice(m.index + m[0].length);
+      const end = endRx && endRx.exec(rest);
+      group.push((end ? rest.slice(0, end.index) : rest).slice(0, rule.maxLen).replace(LEADING_CODE, '').trim());
+    }
+    if (group.length) groups.push(group);
+  }
+  if (!groups.length && rule.fallbackTop) {          // ไม่มี label: ที่อยู่บนสุดก่อนถึง "สถานที่ส่งของ"
+    const cut = new RegExp(L.shipTo, 'i').exec(text);
+    groups.push([(cut && cut.index > 0 ? text.slice(0, cut.index) : text).slice(0, 800)]);
+  }
+
+  for (const group of groups) {
+    for (const s of group) {                          // 1) จากเลขไปรษณีย์
+      const hit = findProvinceInSlice(s);
+      if (hit) return { province: hit.province, postcode: hit.postcode, snippet: s.slice(0, hit.end).trim() };
+    }
+    for (const s of group) {                          // 2) สำรอง: ชื่อจังหวัดในข้อความ
+      const p = scanProvinceName(s);
+      if (p) return { province: p, postcode: '', snippet: s.trim() };
+    }
+  }
+  const first = groups[0] && groups[0][0];
+  return { province: '', postcode: '', snippet: (first || '').slice(0, 200).trim() };
+}
+
+
+function cleanOcrNoise(text) {
+  if (!text) return '';
+  text = text.replace(/[!|~`^_{}\[\]\\]/g, ' ');
+  text = text.replace(/([ก-๙])[a-zA-Z]{1,2}(?=[ก-๙])/g, '$1');
+  text = text.replace(/([ก-ฮ])([เแโใไ])/g, '$2$1');
+  text = text.replace(/\s+([่้๊๋ึืุู์])/g, '$1');
+  text = text.replace(/[ \t]{2,}/g, ' ').trim();
+  return text;
+}
+
+function preprocessForOcr(canvas) {
+  const ctx = canvas.getContext('2d');
+  const { width, height } = canvas;
+  const imageData = ctx.getImageData(0, 0, width, height);
+  const d = imageData.data;
+  const gray = new Uint8ClampedArray(width * height);
+  for (let i = 0, p = 0; i < d.length; i += 4, p++) {
+    gray[p] = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+  }
+  let sumB = 0, wB = 0, maxVar = 0, threshold = 127;
+  const hist = new Array(256).fill(0);
+  for (let p = 0; p < gray.length; p++) hist[gray[p]]++;
+  let sum = 0;
+  for (let t = 0; t < 256; t++) sum += t * hist[t];
+  for (let t = 0; t < 256; t++) {
+    wB += hist[t];
+    if (wB === 0) continue;
+    const wF = gray.length - wB;
+    if (wF === 0) break;
+    sumB += t * hist[t];
+    const mB = sumB / wB, mF = (sum - sumB) / wF;
+    const varBetween = wB * wF * (mB - mF) * (mB - mF);
+    if (varBetween > maxVar) { maxVar = varBetween; threshold = t; }
+  }
+  for (let i = 0, p = 0; i < d.length; i += 4, p++) {
+    const v = gray[p] > threshold ? 255 : 0;
+    d[i] = d[i + 1] = d[i + 2] = v;
+  }
+  ctx.putImageData(imageData, 0, 0);
+  return canvas;
+}
+
+// label ที่ "เจาะจง" ว่าเป็นเลขที่ใบสั่งซื้อ (เรียงตามความสำคัญ)
+const ORDER_LABELS = [
+  loose('เลขที่ใบสั่งซื้อ'),
+  loose('ใบสั่งซื้อเลขที่'),
+  loose('เลขที่เอกสาร'),
+  loose('เลขที่') + '\\s*P\\.?\\s*O\\.?',
+  'P\\.?\\s*O\\.?\\s*' + loose('เลขที่'),
+  'Purchase\\s*Order\\s*(?:No\\.?|Number|#)',
+  'P\\.?\\s*O\\.?\\s*(?:No\\.?|Number|#)',
+  'Order\\s*(?:No\\.?|Number|#)',
+];
+
+// ลบ \\s* ออกเพื่อบังคับให้เครื่องหมายโคลอนติดกับคำว่าเลขที่เสมอ
+const LABEL_COLON = loose('เลขที่') + '[:：]';
+const MAKRO_LABEL = loose('เลขที่ใบสั่งซื้อ') + '\\s*[:：]?\\s*(?:' + loose('วันที่') + '.{0,10}' + loose('สินค้า') + '\\s*[:：]?\\s*\\d+\\s*(?:วัน|วั)\\s*)?';
+const CPALL_LABEL = loose('เลขที่') + '\\s*[:：]\\s*(?:' + loose('กำหนดส่ง') + '\\s*[:：]?\\s*\\d+\\s*(?:วัน|วั)\\s*(?:' + loose('ตามเงื่อนไข') + ')?\\s*)?';
+const LOTUS_LABEL = loose('ใบสั่งซื้อสินค้า');
+
+const ORDER_RULES = {
+  'Makro': { labels: [MAKRO_LABEL, loose('เลขที่ใบสั่งซื้อ')], relaxed: true },
+  'Lotus': { labels: [LOTUS_LABEL, LABEL_COLON], relaxed: true },
+  'CP All': { labels: [CPALL_LABEL, LABEL_COLON], relaxed: true },
+};
+
+const ORDER_PREFIX = '(?:(?:P\\.?\\s*O\\.?|No\\.?|Number|#)\\s*[:：.]?\\s*)?';
+const ORDER_TOKEN = '([A-Za-z0-9][A-Za-z0-9\\-\\/_.]{2,24})';
+
+
+function cleanOrderToken(tok, relaxed) {
+  const v = String(tok || '').replace(/[.\-\/_]+$/, '');
+  if (!/\d/.test(v)) return '';
+  if (/^\d{13}$/.test(v)) return '';                                  // เลขผู้เสียภาษี
+  if (/^\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4}$/.test(v)) return '';    // วันที่
+  if (relaxed) return v.length >= 4 ? v : '';
+  if (v.length < 6) return '';
+  if (/^\d{1,4}\/\d{1,4}$/.test(v)) return '';                       // เลขที่บ้าน 188/1
+  return v;
+}
+
+function extractAndCorrectAddress(rawText) {
+  const cleaned = cleanOcrNoise(rawText);
+  const postalMatch = cleaned.match(/\b\d{5}\b/);
+  const houseMatch = cleaned.match(/\b(\d{1,4}\/\d{1,4}|\d{1,4})\b/);
+  const mooMatch = cleaned.match(/ห[มน]ู?่?\s*(?:ที่)?\s*(\d{1,2})/);
+
+  const result = {
+    raw: rawText, cleaned,
+    houseNo: houseMatch ? houseMatch[1] : null,
+    moo: mooMatch ? mooMatch[1] : null,
+    postcode: null, tambon: null, amphoe: null, changwat: null,
+    confidence: 'needs_review'
+  };
+
+  if (postalMatch && POSTAL_DB[postalMatch[0]]) {
+    const rec = POSTAL_DB[postalMatch[0]];
+    result.postcode = postalMatch[0];
+    result.tambon = rec.tambon;
+    result.amphoe = rec.amphoe;
+    result.changwat = rec.changwat;
+    result.confidence = 'high';
+  } else if (postalMatch) {
+    result.postcode = postalMatch[0];
+    result.confidence = 'unknown_postcode';
+  }
+  return result;
+}
+
+function formatAddress(r) {
+  if (!r.postcode || r.confidence !== 'high') {
+    return { text: (r.cleaned || '(ไม่พบข้อความ)'), formatted: false };
+  }
+  const text = [r.houseNo || '-', 'หมู่ ' + (r.moo || '-'), 'ต.' + r.tambon, 'อ.' + r.amphoe, 'จ.' + r.changwat, r.postcode].join(' ');
+  return { text, formatted: true };
+}
+
+function extractItemCodes(rawText) {
+  const cleaned = (rawText || '').toUpperCase();
+  const found = cleaned.match(ITEM_CODE_REGEX) || [];
+  return [...new Set(found.filter(c => !/^\d{5}$/.test(c)))];
+}
+
+function extractPdfAddressText(rawText, customer) {
+  return stripPhone(locateProvince(rawText, customer, 'dest').snippet);
+}
+
+function extractPdfOrderNumber(rawText, customer) {
+  const text = normalizePdfText(rawText);
+
+  // ================== [เริ่มส่วน Debug ] ==================
+  //   console.log(`\n========== 🔍 กำลังตรวจสอบบิลของห้าง: ${customer} ==========`);
+
+  //   // 1. สแกนหาคำว่า "เลขที่" ตรงๆ
+  //   const searchKeyword = "เลขที่";
+  //   const keywordIndex = text.indexOf(searchKeyword);
+  //  if (keywordIndex !== -1) {
+  //     console.log(`✅ คำว่า "${searchKeyword}" อยู่ที่ Index ${keywordIndex}`);
+  //     // ปริ้นต์ข้อความรอบๆ ออกมาดูว่ามีอะไรแทรกอยู่ไหม
+  //     console.log(`👉 ข้อความดิบแวดล้อม: >> "${text.slice(Math.max(0, keywordIndex - 30), keywordIndex + 80)}" <<`);
+  //   } else {
+  //     console.log(`❌ ไม่พบคำว่า "${searchKeyword}" เลย! (อาจเป็นรูปภาพที่ OCR อ่านเพี้ยน หรือตัวอักษรฉีกขาด)`);
+  //     // ถ้าหาไม่เจอเลย ลองปริ้นต์ข้อความทั้งหน้าออกมาดู 500 ตัวอักษรแรก
+  //     console.log(`📄 เนื้อหาดิบที่โค้ดเห็น: ${text.slice(0, 500)}...`);
+  //   }
+  // 2. 🎯 เรดาร์ตามหาเลข PO 
+  // const targetPO = "43805348"; // <--- ⚠️ แก้เป็นเลข PO ของบิล Lotus ใบนี้
+  // const poIndex = text.indexOf(targetPO);
+  // if (poIndex !== -1) {
+  //   console.log(`🎯 บิงโก! เจอเลข PO (${targetPO}) แอบอยู่ที่ Index ${poIndex}`);
+  //   // ขยายวงการดึงข้อความรอบๆ ให้กว้างขึ้น จะได้เห็นบริบทชัดๆ
+  //   console.log(`   👉 ข้อความรอบๆ ตัวเลข PO คือ: >> "${text.slice(Math.max(0, poIndex - 50), poIndex + 60)}" <<`);
+  // } else {
+  //   console.log(`🎯 ❌ ไม่เจอเลข ${targetPO} ในหน้านี้เลย`);
+  // }
+  // console.log("============================================================\n");
+  // ================== [จบส่วน Debug] ==================
+
+  if (ORDER_RULES[customer]) {
+    const rule = ORDER_RULES[customer];
+    for (const label of rule.labels) {
+      const regex = new RegExp(`${label}${SEP}${ORDER_PREFIX}${ORDER_TOKEN}`, 'gi');
+      for (const m of text.matchAll(regex)) {
+        const v = cleanOrderToken(m[1], rule.relaxed);
+        if (v) return v;
+      }
+    }
+
+    // // 🚨 เรดาร์สายลับ: ถ้าหาตามกฎไม่เจอ ให้ปริ้นต์ Log ออกมาดูว่าเกิดอะไรขึ้น
+    // console.log(`\n🚨 [${customer}] เจอบิลที่หาเลข PO ไม่พบ!`);
+
+    // // ลองหาคำว่า "เลขที่" หรือ "ใบสั่งซื้อ" ว่ามันไปซ่อนอยู่ตรงไหน
+    // const keywordIndex = text.indexOf("เลขที่") !== -1 ? text.indexOf("เลขที่") : text.indexOf("ใบสั่งซื้อ");
+    // if (keywordIndex !== -1) {
+    //   console.log(`👉 เจอคำคีย์เวิร์ด! ข้อความแวดล้อมคือ: >> "${text.slice(Math.max(0, keywordIndex - 20), keywordIndex + 80)}" <<`);
+    // } else {
+    //   console.log(`👉 หาคำคีย์เวิร์ดไม่เจอเลย! ข้อความ 300 ตัวอักษรแรกคือ: >> "${text.slice(0, 300)}" <<`);
+    // }
+    // console.log("--------------------------------------------------\n");
+
+    return ORDER_NUMBER_NOT_FOUND;
+  }
+
+  for (const label of ORDER_LABELS) {
+    const regex = new RegExp(`${label}${SEP}${ORDER_PREFIX}${ORDER_TOKEN}`, 'gi');
+    for (const m of text.matchAll(regex)) {
+      const v = cleanOrderToken(m[1]);
+      if (v) return v;
+    }
+  }
+
+  for (const m of text.matchAll(new RegExp(`${loose('เลขที่')}${SEP}${ORDER_TOKEN}`, 'gi'))) {
+    const v = cleanOrderToken(m[1]);
+    if (v) return v;
+  }
+
+  console.log(`\n🚨 [${customer}] เจอบิลที่หาเลข PO ไม่พบ!`);
+  console.log(`👉 ข้อความ 300 ตัวอักษรแรก: >> "${text.slice(0, 300)}" <<\n`);
+
+  return ORDER_NUMBER_NOT_FOUND;
+}
+
+function extractPdfDestination(rawText, customer, addr, addressText) {
+  const r = locateProvince(rawText, customer, 'dest');
+  if (r.province) return r.province;
+  if (addr && addr.changwat) return addr.changwat;
+  return scanProvinceName(normalizePdfText(addressText || '')) || DEST_NOT_FOUND;
+}
+
+function normalizeOcrArtifacts(text) {
+  let t = String(text || '')
+    .replace(/Ѽ\s*า/g, 'ำ')
+    .replace(/Ѽ/g, 'ื่')
+    .replace(/ҕ/g, '่')
+    .replace(/Ѱ/g, 'แ')        
+    .replace(/นื่้า/g, 'น้ำ')     
+    .replace(/นํ้า/g, 'น้ำ')
+    .replace(/น้ํา/g, 'น้ำ');
+
+  for (const [from, to] of Object.entries(OCR_GLYPH_MAP)) {
+    t = t.split(from).join(to);
+  }
+  return t;
+}
+
+function extractPdfSource(rawText, customer) {
+  return locateProvince(rawText, customer, 'source').province || SOURCE_NOT_FOUND;
+}
+
+function uniqueInOrder(values) {
+  return [...new Set(values.map(value => String(value || '').trim()).filter(Boolean))];
+}
+
+function extractMakroBranch(rawText) {
+  return rawText.match(/\b\d{10,14}\b\s*(สาขา[^\n|]+)/i)?.[1]?.trim() || '';
+}
+
+function extractPdfItems(rawText, customer) {
+  const text = normalizePdfText(rawText);
+  const results = [];
+
+  if (customer === 'Lotus') {
+    const lotusRegex = /\b\d{8,}_[A-Z0-9_]+_\s*(.+?)\s+\d+(?:\.\d+)?\s+\S+\s+[YNyn]\b/gi;
+
+    for (const match of text.matchAll(lotusRegex)) {
+      let itemText = match[1].trim();
+
+      itemText = itemText.replace(/นื่้า/g, 'น้ำ').replace(/นํ้า/g, 'น้ำ');
+
+      results.push(itemText);
+    }
+
+    if (results.length > 0) {
+      return [...new Set(results)];
+    }
+  }
+
+  if (customer === 'CP All') {
+    const cpAllRegex = /(?:^|\s)\d+\s+(\d{7})\s+(\d{13})\s+(.+?)(?=\s+\d+\.\d{2}\s+\d+\s+)/g;
+
+    for (const match of text.matchAll(cpAllRegex)) {
+      let itemName = match[3].trim();
+
+      itemName = itemName.replace(/นื่้า/g, 'น้ำ')
+        .replace(/นํ้า/g, 'น้ำ')
+        .replace(/^H\s*/i, '')
+        .replace(/น้ํา/g, 'น้ำ');
+
+      results.push(itemName);
+    }
+
+    if (results.length > 0) {
+      return [...new Set(results)];
+    }
+  }
+  if (customer === 'Makro') {
+    const makroRegex = /(?:^|\s)\d+\s+(.*?)\s*\(\s*(\d{13})\s*\/[^\)]+\)/g;
+
+    for (const match of text.matchAll(makroRegex)) {
+      let itemName = match[1].trim();
+
+      if (itemName.includes('สาขา')) {
+        itemName = itemName.replace(/.*สาขา.*?(?:\d[\d,\.]*\s+)+/g, '');
+      }
+
+      itemName = itemName.replace(/นื่้า/g, 'น้ำ')
+        .replace(/นํ้า/g, 'น้ำ')
+        .replace(/^H\s*/i, '')
+        .replace(/น้ํา/g, 'น้ำ');
+
+      results.push(itemName.trim());
+    }
+
+    if (results.length > 0) return [...new Set(results)];
+  }
+
+  if (customer === 'CJ Express') {
+    const cjRegex = /(?:^|\s)\d+\s+(\d{13})\s+(\d{13})\s+(.+?)\s+\d+(?:\.\d+)?\s+[A-Za-z]+\/\d+/g;
+
+    for (const match of text.matchAll(cjRegex)) {
+      let itemName = match[3].trim();
+
+      itemName = itemName.replace(/นื่้า/g, 'น้ำ')
+        .replace(/นํ้า/g, 'น้ำ')
+        .replace(/^H\s*/i, '')
+        .replace(/น้ํา/g, 'น้ำ');
+
+      results.push(itemName);
+    }
+
+    if (results.length > 0) return [...new Set(results)];
+  }
+  // ====================================================================
+  const itemLabel = customer === 'CJ Express' ? 'ชื่อสินค้า' : 'รายการ';
+  const itemMatch = rawText.match(new RegExp(`(?:${itemLabel})\\s*[:：-]?\\s*(.+)$`, 'im'));
+  const extractedText = itemMatch?.[1]?.trim();
+  const codes = extractItemCodes(extractedText || '');
+  results.push(...codes);
+
+  if (extractedText) results.push(extractedText);
+
+  if (customer === 'Makro') {
+    const branch = extractMakroBranch(rawText);
+    if (branch) results.push(branch);
+  }
+
+  return [...new Set(results.filter(Boolean))];
+}
+
+function getCustomerColumns(customer, headers) {
+  const columnConfig = CUSTOMER_EXCEL_COLUMNS[customer] || CUSTOMER_EXCEL_COLUMNS.Lotus;
+  const safeHeaders = headers || [];
+  const normalized = safeHeaders.map(normalizeExcelHeader);
+
+  const findColumn = (patterns, fallback) => {
+    if (!patterns) return fallback;
+    const normalizedPatterns = patterns.map(normalizeExcelHeader);
+    const index = normalized.findIndex(header => normalizedPatterns.some(pattern => header.includes(pattern)));
+    return index >= 0 ? index : fallback;
+  };
+
+  switch (customer) {
+    case 'CJ Express':
+      return { shipIdx: findColumn(columnConfig.ship, 0), descIdx: findColumn(columnConfig.description, 1) };
+    case 'CP All': {
+      const deliveryIdx = findColumn(columnConfig.delivery, 0);
+      const addressIdx = findColumn(columnConfig.address, Math.min(deliveryIdx + 1, Math.max(0, safeHeaders.length - 1)));
+      return { shipIdx: addressIdx, descIdx: findColumn(columnConfig.description, 1) };
+    }
+    case 'Makro':
+      return { shipIdx: findColumn(columnConfig.ship, 0), descIdx: findColumn(columnConfig.description, 1) };
+    case 'Lotus':
+    default:
+      return { shipIdx: findColumn(columnConfig.ship, 0), descIdx: findColumn(columnConfig.description, 1) };
+  }
+}
+
+function mapExcelRows(rawRows, headers, customer) {
+  const safeHeaders = headers || [];
+  const { shipIdx, descIdx } = getCustomerColumns(customer, safeHeaders);
+  const normalizedHeaders = safeHeaders.map(normalizeExcelHeader);
+
+  const findHeaderValue = (row, patterns) => {
+    if (!patterns) return '';
+    const normalizedPatterns = patterns.map(normalizeExcelHeader);
+    const exactIndex = normalizedHeaders.findIndex(header => normalizedPatterns.includes(header));
+    const index = exactIndex >= 0 ? exactIndex : normalizedHeaders.findIndex(header => normalizedPatterns.some(pattern => header.includes(pattern)));
+    return index >= 0 ? repairExcelText(row[index]).trim() : '';
+  };
+
+  const safeRawRows = rawRows || [];
+  return safeRawRows
+    .filter(row => row && row.some(cell => String(cell || '').trim() !== ''))
+    .map(row => {
+      // อัปเดตกลุ่มคำศัพท์ (Keywords) ให้ครอบคลุมไฟล์ SO, Log, Makro, Lotus, CP All ตามที่ระบุ
+      const poNumber = findHeaderValue(row, ['ponumber', 'purchaseorderno.']);
+      const shipTo = findHeaderValue(row, ['shiptoparty', 'shiptopartyname1', 'ส่งสินค้าไปที่']);
+      const soldTo = findHeaderValue(row, ['soldtoparty']);
+      const productDesc = findHeaderValue(row, ['productdescription', 'materialdescription']);
+
+      return {
+        // ใช้ค่าเริ่มต้นจาก column mapping หรือถ้าหาไม่เจอให้ดึงจาก dynamic search
+        ship: repairExcelText(row[shipIdx]).trim() || shipTo,
+        description: repairExcelText(row[descIdx]).trim() || productDesc,
+
+        // ฟิลด์ข้อมูลหลักที่ใช้โชว์ในตาราง Excel ขวามือ
+        ponumber: poNumber,
+        soldToParty: soldTo,
+        productdescription: productDesc,
+        shipToParty: shipTo,
+
+        // ฟิลด์ข้อมูลอ้างอิงเพิ่มเติม
+        shipToName: findHeaderValue(row, ['name1', 'shiptopartyname1']),
+        source: findHeaderValue(row, ['soldtopartyname1', 'soldtoname1']),
+        salesorder: findHeaderValue(row, ['salesorder', 'salesdocument']),
+        raw: row
+      };
+    });
+}
+
+function CheckboxDropdown({ id, label, options, selected, onChange, disabled, hint }) {
+  const toggleOption = (option) => {
+    onChange(selected.includes(option) ? selected.filter(value => value !== option) : [...selected, option]);
+  };
+  const selectAll = () => onChange([...options]);
+  const clearAll = () => onChange([]);
+
+  return (
+    <div className="filterGroup">
+      <details className="filterDropdown">
+        <summary id={id}>
+          <span className="filterSummaryLabel">{label}</span>
+          {selected.length > 0 && <span className="filterCount">{selected.length}</span>}
+        </summary>
+        <div className="filterMenu">
+          {options.length === 0 ? (
+            <span className="filterEmpty">ยังไม่มีข้อมูล</span>
+          ) : options.map(option => (
+            <label className="filterOption" key={option}>
+              <Checkbox checked={selected.includes(option)} disabled={disabled} onChange={() => toggleOption(option)} />
+              <span>{option}</span>
+            </label>
+          ))}
+          {options.length > 0 && (
+            <div className="filterActions">
+              <Button size="sm" variant="outline" onClick={selectAll} disabled={disabled || options.length === 0}>เลือกทั้งหมด</Button>
+              <Button size="sm" variant="ghost" onClick={clearAll} disabled={disabled || selected.length === 0}>ล้าง</Button>
+            </div>
+          )}
+        </div>
+      </details>
+      <small className="filterHint">{hint}</small>
+    </div>
+  );
+}
+
+// ================== ส่วนใหม่: ฟิลเตอร์แบบ Google Sheets ในหัวตาราง Excel ==================
+function ColumnFilterDropdown({ options, selected, onChange }) {
+  const toggleOption = (option) => {
+    onChange(selected.includes(option) ? selected.filter(v => v !== option) : [...selected, option]);
+  };
+  const isActive = selected.length > 0;
+
+  return (
+    <details className="tableFilterDropdown" style={{ position: 'relative', display: 'inline-block' }}>
+      <style>{`.tableFilterDropdown summary::-webkit-details-marker { display: none; }`}</style>
+      <summary style={{ cursor: 'pointer', listStyle: 'none', color: isActive ? 'var(--teal)' : 'var(--ink-soft)', display: 'flex', alignItems: 'center' }}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill={isActive ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+        </svg>
+      </summary>
+      <div onClick={(e) => e.stopPropagation()} style={{
+        position: 'absolute', top: '100%', right: 0, minWidth: '220px', background: '#fff',
+        border: '1px solid var(--line)', borderRadius: '6px', padding: '8px', zIndex: 999,
+        boxShadow: '0 8px 24px rgba(0,0,0,0.12)', maxHeight: '300px', overflowY: 'auto',
+        fontWeight: 'normal', color: 'var(--ink)', textAlign: 'left'
+      }}>
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '8px', borderBottom: '1px solid var(--line)', paddingBottom: '8px' }}>
+          <button type="button" onClick={() => onChange([...options])} style={{ fontSize: '11px', cursor: 'pointer', border: 'none', background: 'none', color: 'var(--teal)', fontWeight: 600, padding: 0 }}>เลือกทั้งหมด</button>
+          <button type="button" onClick={() => onChange([])} style={{ fontSize: '11px', cursor: 'pointer', border: 'none', background: 'none', color: 'var(--ink-soft)', padding: 0 }}>ล้าง</button>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          {options.length === 0 && <div style={{ fontSize: '12px', color: 'var(--ink-soft)' }}>ไม่มีข้อมูล</div>}
+          {options.map((opt, idx) => (
+            <label key={idx} style={{ display: 'flex', gap: '8px', alignItems: 'center', fontSize: '12.5px', padding: '4px', cursor: 'pointer', borderRadius: '4px' }}>
+              <input type="checkbox" checked={selected.includes(opt)} onChange={() => toggleOption(opt)} style={{ accentColor: 'var(--teal)', margin: 0 }} />
+              <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={opt}>{opt || '(ว่าง)'}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+    </details>
+  );
+}
+// =========================================================================================
+
+const RESULTS_PER_PAGE = 10;
+
+export default function PoChecker() {
+  const [pdfFiles, setPdfFiles] = useState([]);
+  const [excelSources, setExcelSources] = useState([]);
+  const [customer, setCustomer] = useState('CP All');
+  const excelRows = useMemo(
+    () => excelSources.flatMap(source => mapExcelRows(source.rawRows, source.headers, customer)),
+    [excelSources, customer]
+  );
+  const [selectedSources, setSelectedSources] = useState([]);
+  const [selectedSites, setSelectedSites] = useState([]);
+  const [selectedItems, setSelectedItems] = useState([]);
+
+  // --- Excel Column Filters State ---
+  const [excelFilters, setExcelFilters] = useState({
+    ponumber: [],
+    shipToParty: [],
+    soldToParty: [],
+    productdescription: []
+  });
+
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [status, setStatus] = useState({ active: false, text: '', current: 0, total: 0 });
+
+  const [pageResults, setPageResults] = useState([]);
+  const [selectedPage, setSelectedPage] = useState(null);
+  const [previewZoom, setPreviewZoom] = useState(1);
+  const [resultsPage, setResultsPage] = useState(1);
+  const [printPagesList, setPrintPagesList] = useState([]);
+  const [selectedPrintPages, setSelectedPrintPages] = useState([]);
+
+  // --- Drag & Drop States ---
+  const [isPdfDragging, setIsPdfDragging] = useState(false);
+  const [isExcelDragging, setIsExcelDragging] = useState(false);
+
+  // --- Drag & Drop Handlers ---
+  const handlePdfDragOver = useCallback((e) => { e.preventDefault(); setIsPdfDragging(true); }, []);
+  const handlePdfDragLeave = useCallback(() => setIsPdfDragging(false), []);
+  const handlePdfDrop = useCallback((e) => {
+    e.preventDefault();
+    setIsPdfDragging(false);
+    if (isProcessing) return;
+    const files = [...e.dataTransfer.files].filter(f => f.type === 'application/pdf' || /\.pdf$/i.test(f.name));
+    if (files.length) setPdfFiles(curr => [...curr, ...files]);
+  }, [isProcessing]);
+
+  const handleExcelChange = useCallback(async (e) => {
+    const input = e.target;
+    const files = [...input.files];
+    if (!files.length) return;
+    try {
+      const sources = (await Promise.all(files.map(file => new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          try {
+            const wb = XLSX.read(new Uint8Array(event.target.result), { type: 'array' });
+            const sheetSources = wb.SheetNames.map((sheetName) => {
+              const sheet = wb.Sheets[sheetName];
+              const json = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
+              return json.length ? { headers: json[0], rawRows: json.slice(1), name: `${file.name} / ${sheetName}` } : null;
+            }).filter(Boolean);
+            resolve(sheetSources);
+          } catch (error) {
+            reject(error);
+          }
+        };
+        reader.onerror = () => reject(new Error(`อ่านไฟล์ ${file.name} ไม่สำเร็จ`));
+        reader.readAsArrayBuffer(file);
+      })))).flat();
+
+      setSelectedSites([]);
+      setSelectedSources([]);
+      setSelectedItems([]);
+      setExcelFilters({ ponumber: [], shipToParty: [], soldToParty: [], productdescription: [] });
+      setExcelSources(currentSources => [...currentSources, ...sources]);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      alert('อ่านไฟล์ Excel ไม่สำเร็จ: ' + message);
+    } finally {
+      if ('value' in input) input.value = '';
+    }
+  }, []);
+
+  const handleExcelDragOver = useCallback((e) => { e.preventDefault(); setIsExcelDragging(true); }, []);
+  const handleExcelDragLeave = useCallback(() => setIsExcelDragging(false), []);
+  const handleExcelDrop = useCallback((e) => {
+    e.preventDefault();
+    setIsExcelDragging(false);
+    const files = [...e.dataTransfer.files].filter(f => /\.(xlsx|xls|csv)$/i.test(f.name));
+    if (files.length) handleExcelChange({ target: { files } });
+  }, [handleExcelChange]);
+
+  const clearPdfFiles = (e) => {
+    if (isProcessing) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setPdfFiles([]);
+    setPageResults([]);
+    setSelectedPage(null);
+    setSelectedPrintPages([]);
+    setPrintPagesList([]);
+    setResultsPage(1);
+  };
+
+  const clearExcelFiles = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setExcelSources([]);
+    setSelectedSources([]);
+    setSelectedSites([]);
+    setSelectedItems([]);
+    setExcelFilters({ ponumber: [], shipToParty: [], soldToParty: [], productdescription: [] });
+  };
+
+  const handlePdfChange = (e) => {
+    const files = [...e.target.files];
+    if (!isProcessing && files.length) setPdfFiles((currentFiles) => [...currentFiles, ...files]);
+    e.target.value = '';
+  };
+
+  const handleCustomerChange = (event) => {
+    const nextCustomer = event.target.value;
+    setCustomer(nextCustomer);
+    setSelectedSites([]);
+    setSelectedSources([]);
+    setSelectedItems([]);
+    setExcelFilters({ ponumber: [], shipToParty: [], soldToParty: [], productdescription: [] });
+    setPageResults([]);
+    setSelectedPage(null);
+    setSelectedPrintPages([]);
+    setPrintPagesList([]);
+    setResultsPage(1);
+    setPreviewZoom(1);
+  };
+
+  const processPdf = async () => {
+    if (!pdfFiles.length || isProcessing) return;
+    setIsProcessing(true);
+    setStatus({ active: true, text: 'กำลังเตรียมระบบ…', current: 0, total: 0 });
+    setPageResults([]);
+    setSelectedPage(null);
+    setSelectedPrintPages([]);
+    setResultsPage(1);
+
+    let tesseractWorker = null;
+    try {
+      const pdfDocs = [];
+      for (const file of pdfFiles) {
+        const buf = await file.arrayBuffer();
+        pdfDocs.push(await pdfjsLib.getDocument({ data: buf }).promise);
+      }
+      const total = pdfDocs.reduce((pageCount, pdfDoc) => pageCount + pdfDoc.numPages, 0);
+
+      const results = [];
+      let pageNumber = 0;
+
+      let currentDocumentPO = ORDER_NUMBER_NOT_FOUND;
+
+      for (const [documentIndex, pdfDoc] of pdfDocs.entries()) {
+        currentDocumentPO = ORDER_NUMBER_NOT_FOUND;
+        const poGroups = {};
+
+        for (let p = 1; p <= pdfDoc.numPages; p++) {
+          pageNumber += 1;
+          setStatus({ active: true, text: `กำลังอ่านข้อความหน้า ${pageNumber} จาก ${total}…`, current: pageNumber, total });
+          const page = await pdfDoc.getPage(p);
+
+          const viewport = page.getViewport({ scale: PREVIEW_SCALE });
+          const canvas = document.createElement('canvas');
+          canvas.width = viewport.width; canvas.height = viewport.height;
+          await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+          const thumbDataUrl = canvas.toDataURL('image/png');
+
+          const textContent = await page.getTextContent();
+          let rawText = textContent.items.map(i => i.str).join(' ').trim();
+          let source = 'text-layer';
+          let ocrConfidence = null;
+
+          if (rawText.length < 8) {
+            source = 'ocr';
+            if (!tesseractWorker) {
+              setStatus({ active: true, text: 'กำลังโหลดโมดูล OCR (ครั้งแรกอาจใช้เวลาสักครู่)…', current: pageNumber, total });
+              tesseractWorker = await Tesseract.createWorker('tha+eng', 1);
+              await tesseractWorker.setParameters({
+                tessedit_pageseg_mode: Tesseract.PSM.SPARSE_TEXT,
+                user_defined_dpi: String(Math.round(OCR_SCALE * 72)),
+                preserve_interword_spaces: '1',
+              });
+            }
+            setStatus({ active: true, text: `กำลัง OCR หน้า ${pageNumber} จาก ${total} (ความละเอียดสูง)…`, current: pageNumber, total });
+
+            const ocrViewport = page.getViewport({ scale: OCR_SCALE });
+            const ocrCanvas = document.createElement('canvas');
+            ocrCanvas.width = ocrViewport.width; ocrCanvas.height = ocrViewport.height;
+            await page.render({ canvasContext: ocrCanvas.getContext('2d'), viewport: ocrViewport }).promise;
+            preprocessForOcr(ocrCanvas);
+
+            const { data } = await tesseractWorker.recognize(ocrCanvas);
+            rawText = data.text.trim();
+            ocrConfidence = data.confidence;
+          }
+
+          const addressText = extractPdfAddressText(rawText, customer);
+          const addr = extractAndCorrectAddress(addressText);
+          const formattedAddr = formatAddress(addr);
+
+          const pdfDestination = extractPdfDestination(rawText, customer, addr, addressText);
+          const pdfSource = extractPdfSource(rawText, customer);
+
+          let extractedPO = extractPdfOrderNumber(rawText, customer);
+
+          const keywords = ['ใบสั่งซื้อ', 'purchase order', 'ผู้สั่งซื้อ', 'กำหนดส่ง', 'สถานที่ส่งของ', 'ผู้จำหน่าย', 'เลขประจำตัวผู้เสียภาษี', 'เงื่อนไขการชำระเงิน', 'วันที่ส่งสินค้า'];
+          const isNewDoc = keywords.filter(kw => normalizePdfText(rawText).includes(kw)).length >= 2;
+
+          if (extractedPO !== ORDER_NUMBER_NOT_FOUND) {
+            currentDocumentPO = extractedPO;
+          } else {
+            if (isNewDoc) {
+              currentDocumentPO = ORDER_NUMBER_NOT_FOUND;
+              extractedPO = ORDER_NUMBER_NOT_FOUND;
+            } else {
+              extractedPO = currentDocumentPO;
+            }
+          }
+
+          const pdfItems = extractPdfItems(rawText, customer);
+
+          const rowData = {
+            id: `page-${pageNumber}`,
+            pages: [pageNumber],
+            rawText,
+            source,
+            ocrConfidence,
+            addr,
+            formattedAddr,
+            pdfAddress: pdfDestination,
+            pdfDestination,
+            pdfSource,
+            pdfOrderNumber: extractedPO,
+            pdfItems,
+            codes: pdfItems,
+            thumbDataUrls: [thumbDataUrl]
+          };
+
+          addPdfPageResult(results, poGroups, rowData, documentIndex, ORDER_NUMBER_NOT_FOUND);
+        }
+      }
+
+      setPageResults(results);
+      if (results.length > 0) setSelectedPage(results[0]);
+      setPreviewZoom(1);
+    } catch (error) {
+      console.error(error);
+      const message = error instanceof Error ? error.message : String(error);
+      alert(`เกิดข้อผิดพลาดในการประมวลผล PDF: ${message}`);
+    } finally {
+      try {
+        if (tesseractWorker) await tesseractWorker.terminate();
+      } catch (cleanupError) {
+        console.error('ปิดระบบ OCR ไม่สำเร็จ', cleanupError);
+      } finally {
+        setStatus({ active: false, text: '', current: 0, total: 0 });
+        setIsProcessing(false);
+      }
+    }
+  };
+
+  const getFilteredResults = () => {
+    return pageResults.filter((result) => {
+      const matchesSource = selectedSources.length === 0 || selectedSources.includes(result.pdfSource);
+      const matchesSite = selectedSites.length === 0 || selectedSites.includes(result.pdfDestination);
+      const matchesItem = selectedItems.length === 0 || result.pdfItems.some(item => selectedItems.includes(item));
+      return matchesSource && matchesSite && matchesItem;
+    });
+  };
+
+  const triggerPrint = (pagesList) => {
+    setPrintPagesList(sortPdfResultsByPage(pagesList));
+    setTimeout(() => window.print(), 100);
+  };
+
+  const togglePrintPage = (id) => {
+    setSelectedPrintPages((ids) => ids.includes(id)
+      ? ids.filter(value => value !== id)
+      : [...ids, id]);
+  };
+
+  const toggleFilteredPrintPages = () => {
+    const filteredIds = filteredResults.map(result => result.id);
+    const allSelected = filteredIds.length > 0 && filteredIds.every(id => selectedPrintPages.includes(id));
+    setSelectedPrintPages((ids) => allSelected
+      ? ids.filter(id => !filteredIds.includes(id))
+      : [...new Set([...ids, ...filteredIds])]);
+  };
+  const sources = uniqueInOrder(pageResults.map(result => result.pdfSource));
+  const sites = uniqueInOrder(pageResults.map(result => result.pdfDestination));
+  const availableItems = uniqueInOrder(pageResults.flatMap(result => result.pdfItems));
+  const filteredResults = getFilteredResults();
+  const totalResultPages = Math.max(1, Math.ceil(filteredResults.length / RESULTS_PER_PAGE));
+  const currentResultsPage = Math.min(resultsPage, totalResultPages);
+  const activeSelectedPage = filteredResults.find(result => result.id === selectedPage?.id) || filteredResults[0] || null;
+  const visibleResults = filteredResults.slice((currentResultsPage - 1) * RESULTS_PER_PAGE, currentResultsPage * RESULTS_PER_PAGE);
+  const selectedResultIndex = filteredResults.findIndex(result => result.id === activeSelectedPage?.id);
+  const selectedPrintResults = pageResults.filter(result => selectedPrintPages.includes(result.id));
+  const allFilteredPagesSelected = filteredResults.length > 0 && filteredResults.every(result => selectedPrintPages.includes(result.id));
+
+  const selectPreviewPage = (index) => {
+    if (index >= 0 && index < filteredResults.length) setSelectedPage(filteredResults[index]);
+  };
+
+  const paginationControls = filteredResults.length > RESULTS_PER_PAGE ? (
+    <div className="pagination" aria-label="เลือกหน้าผลการตรวจสอบ" style={{ padding: '10px 16px', background: 'var(--card)' }}>
+      <Button variant="outline" size="sm" disabled={currentResultsPage === 1} onClick={() => setResultsPage(currentResultsPage - 1)}>ก่อนหน้า</Button>
+      <span style={{ fontWeight: 500, color: 'var(--ink)' }}>หน้า {currentResultsPage} / {totalResultPages}</span>
+      <Button variant="outline" size="sm" disabled={currentResultsPage === totalResultPages} onClick={() => setResultsPage(currentResultsPage + 1)}>ถัดไป</Button>
+    </div>
+  ) : null;
+
+  // --- Excel Filter Logic ---
+  const handleExcelFilterChange = (column, newSelected) => {
+    setExcelFilters(prev => ({ ...prev, [column]: newSelected }));
+  };
+
+  const excelOptions = {
+    ponumber: uniqueInOrder(excelRows.map(r => r.ponumber)),
+    shipToParty: uniqueInOrder(excelRows.map(r => r.shipToParty)),
+    soldToParty: uniqueInOrder(excelRows.map(r => r.soldToParty)),
+    productdescription: uniqueInOrder(excelRows.map(r => r.productdescription))
+  };
+
+  const filteredExcelRows = excelRows.filter(row => {
+    return (
+      (excelFilters.ponumber.length === 0 || excelFilters.ponumber.includes(row.ponumber)) &&
+      (excelFilters.shipToParty.length === 0 || excelFilters.shipToParty.includes(row.shipToParty)) &&
+      (excelFilters.soldToParty.length === 0 || excelFilters.soldToParty.includes(row.soldToParty)) &&
+      (excelFilters.productdescription.length === 0 || excelFilters.productdescription.includes(row.productdescription))
+    );
+  });
+
+  return (
+    <div className="po-container">
+      <header className="po-header">
+        <div>
+          <div className="brandLine">
+            <div className="badge">PO Checking</div>
+          </div>
+          <h1 style={{ color: 'var(--teal-dark)' }}>ระบบตรวจสอบปลายทางใบสั่งซื้อสินค้า</h1>
+          <p>อัปโหลด PDF ใบสั่งซื้อสินค้า และไฟล์ Excel รายการสินค้า/ที่อยู่ เพื่อดูข้อมูลแยกตามไฟล์</p>
+        </div>
+        <img className="brandIcon" src="/po-checking-favicon.svg" alt="" aria-hidden="true" />
+      </header>
+
+      <main className="po-main">
+        <section className="uploads">
+          <Card
+            className={`dropzone ${pdfFiles.length ? 'filled' : ''}`}
+            style={{
+              position: 'relative',
+              borderColor: isPdfDragging ? 'var(--teal)' : '',
+              backgroundColor: isPdfDragging ? 'var(--stamp-green-bg)' : ''
+            }}
+            onDragOver={handlePdfDragOver}
+            onDragLeave={handlePdfDragLeave}
+            onDrop={handlePdfDrop}
+          >
+            {pdfFiles.length > 0 && (
+              <button
+                type="button"
+                onClick={clearPdfFiles}
+                disabled={isProcessing}
+                style={{
+                  position: 'absolute', top: '8px', right: '8px',
+                  background: '#FFEBEB', border: '1px solid #FFCDCD', color: '#B4472A',
+                  cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center',
+                  justifyContent: 'center', borderRadius: '50%', zIndex: 10,
+                  transition: 'all 0.2s ease'
+                }}
+                title="ล้างไฟล์ PDF"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+              </button>
+            )}
+            <label style={{ display: 'flex', alignItems: 'center', gap: '14px', width: '100%', cursor: 'pointer' }}>
+              <div className="icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" /></svg>
+              </div>
+              <div className="meta">
+                <div className="label" style={{ color: 'var(--teal-dark)' }}>ไฟล์ PDF ใบสั่งซื้อสินค้า (เลือกได้หลายไฟล์)</div>
+                <div className="file" style={{ color: isPdfDragging ? 'var(--teal)' : '' }}>{pdfFiles.length ? `${pdfFiles.length} ไฟล์โหลดแล้ว` : 'ลากไฟล์มาวาง หรือ คลิกเพื่อเลือก'}</div>
+              </div>
+              <input type="file" accept="application/pdf" multiple onChange={handlePdfChange} disabled={isProcessing} style={{ display: 'none' }} />
+            </label>
+          </Card>
+
+          <Card
+            className={`dropzone ${excelSources.length ? 'filled' : ''}`}
+            style={{
+              position: 'relative',
+              borderColor: isExcelDragging ? 'var(--teal)' : '',
+              backgroundColor: isExcelDragging ? 'var(--stamp-green-bg)' : ''
+            }}
+            onDragOver={handleExcelDragOver}
+            onDragLeave={handleExcelDragLeave}
+            onDrop={handleExcelDrop}
+          >
+            {excelSources.length > 0 && (
+              <button
+                type="button"
+                onClick={clearExcelFiles}
+                style={{
+                  position: 'absolute', top: '8px', right: '8px',
+                  background: '#FFEBEB', border: '1px solid #FFCDCD', color: '#B4472A',
+                  cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center',
+                  justifyContent: 'center', borderRadius: '50%', zIndex: 10,
+                  transition: 'all 0.2s ease'
+                }}
+                title="ล้างไฟล์ Excel"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+              </button>
+            )}
+            <label style={{ display: 'flex', alignItems: 'center', gap: '14px', width: '100%', cursor: 'pointer' }}>
+              <div className="icon">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><line x1="3" y1="9" x2="21" y2="9" /><line x1="9" y1="21" x2="9" y2="9" /></svg>
+              </div>
+              <div className="meta">
+                <div className="label" style={{ color: 'var(--teal-dark)' }}>ไฟล์ Excel (ship / description)</div>
+                <div className="file" style={{ color: isExcelDragging ? 'var(--teal)' : '' }}>{excelSources.length ? `${excelRows.length} แถวจาก ${excelSources.length} ไฟล์โหลดแล้ว` : 'ลากไฟล์มาวาง หรือ คลิกเพื่อเลือก'}</div>
+              </div>
+              <input type="file" accept=".xlsx,.xls,.csv" multiple onChange={handleExcelChange} style={{ display: 'none' }} />
+            </label>
+          </Card>
+        </section>
+
+        <Card className="toolbar" style={{ backgroundColor: 'rgba(255,255,255,0.95)' }}>
+          <div className="field">
+            <label htmlFor="customer-filter" style={{ fontWeight: 600 }}>Customer</label>
+            <Select id="customer-filter" value={customer} onChange={handleCustomerChange} disabled={isProcessing}>
+              <option value="Lotus">Lotus</option>
+              <option value="CJ Express">CJ Express</option>
+              <option value="Makro">Makro</option>
+              <option value="CP All">CP All</option>
+            </Select>
+          </div>
+
+          <Button onClick={processPdf} disabled={!pdfFiles.length || isProcessing} style={{ boxShadow: '0 4px 12px rgba(43,90,102,0.2)' }}>
+            {isProcessing ? 'กำลังประมวลผล...' : 'ประมวลผล PDF'}
+          </Button>
+
+          <CheckboxDropdown
+            id="source-filter"
+            label="ต้นทางจาก PDF"
+            options={sources}
+            selected={selectedSources}
+            onChange={(values) => { setSelectedSources(values); setResultsPage(1); }}
+            disabled={!pageResults.length}
+            hint="เรียงตามลำดับที่พบใน PDF"
+          />
+
+          <CheckboxDropdown
+            id="site-filter"
+            label="ปลายทางจาก PDF"
+            options={sites}
+            selected={selectedSites}
+            onChange={(values) => { setSelectedSites(values); setResultsPage(1); }}
+            disabled={!pageResults.length}
+            hint="เรียงตามลำดับที่พบใน PDF"
+          />
+
+          <CheckboxDropdown
+            id="item-filter"
+            label="รายการสินค้า"
+            options={availableItems}
+            selected={selectedItems}
+            onChange={(values) => { setSelectedItems(values); setResultsPage(1); }}
+            disabled={!pageResults.length}
+            hint="เรียงตามลำดับที่พบใน PDF"
+          />
+
+          <div className="spacer"></div>
+
+          <div className="pageIndicator" style={{ backgroundColor: 'var(--teal-light)', padding: '4px 12px', borderRadius: '20px', color: 'var(--teal-dark)', fontWeight: 600 }}>
+            {pageResults.length === 0 ? 'ยังไม่มีข้อมูล' :
+              selectedSources.length || selectedSites.length || selectedItems.length ? `พบ ${filteredResults.length} จาก ${pageResults.length} หน้า` : `ทั้งหมด ${pageResults.length} หน้า`}
+          </div>
+
+          <Button
+            variant="outline"
+            disabled={!selectedPrintResults.length}
+            onClick={() => triggerPrint(selectedPrintResults)}
+            style={{ color: 'white', borderColor: 'var(--teal)' }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px' }}><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>
+            พิมพ์หน้าที่เลือก{selectedPrintResults.length > 0 ? ` (${selectedPrintResults.length})` : ''}
+          </Button>
+        </Card>
+
+        {status.active && (
+          <div className="statusBar active">
+            <div className="statusRow">
+              <span style={{ fontWeight: 500, color: 'var(--teal-dark)' }}>{status.text}</span>
+              <span style={{ fontWeight: 600 }}>{status.total > 0 ? `${status.current}/${status.total}` : ''}</span>
+            </div>
+            <div className="progressTrack">
+              <div
+                className="progressFill"
+                style={{ width: status.total ? `${Math.round((status.current / status.total) * 100)}%` : '0%', backgroundColor: 'var(--teal)' }}
+              ></div>
+            </div>
+          </div>
+        )}
+
+        <div className="workspace">
+          <div className='panelLeft'>
+            <Card className="panel">
+              <h2 style={{ color: 'var(--teal-dark)', borderBottom: '2px solid var(--teal-light)' }}>
+                ผลการตรวจสอบรายหน้า <span className="count">{pageResults.length > 0 ? `(${filteredResults.length} หน้า)` : ''}</span>
+              </h2>
+
+              {paginationControls}
+
+              <div className="tableScroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th style={{ width: '46px', backgroundColor: '#F8FAF9' }}>
+                        <Checkbox
+                          checked={allFilteredPagesSelected}
+                          onChange={toggleFilteredPrintPages}
+                          disabled={!filteredResults.length}
+                          aria-label="เลือกทุกหน้าที่แสดง"
+                        />
+                      </th>
+                      <th style={{ backgroundColor: '#F8FAF9', color: 'var(--teal-dark)' }}>PO Number</th>
+                      <th style={{ backgroundColor: '#F8FAF9', color: 'var(--teal-dark)', textAlign: 'center' }}>เทียบ Excel</th>
+                      <th style={{ backgroundColor: '#F8FAF9', color: 'var(--teal-dark)' }}>ต้นทางจาก PDF</th>
+                      <th style={{ backgroundColor: '#F8FAF9', color: 'var(--teal-dark)' }}>ปลายทางจาก PDF</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pageResults.length === 0 ? (
+                      <tr><td colSpan="5" style={{ color: 'var(--ink-soft)', padding: '30px 16px', textAlign: 'center' }}>อัปโหลดไฟล์แล้วกด “ประมวลผล PDF”</td></tr>
+                    ) : filteredResults.length === 0 ? (
+                      <tr><td colSpan="5" style={{ color: 'var(--stamp-red)', padding: '30px 16px', textAlign: 'center', backgroundColor: 'var(--stamp-red-bg)' }}>ไม่พบหน้าที่ตรงกับตัวกรองนี้</td></tr>
+                    ) : (
+                      visibleResults.map((r, idx) => {
+                        const isSelected = selectedPage?.id === r.id;
+                        const isPrintSelected = selectedPrintPages.includes(r.id);
+
+                        // 🎯 ลอจิกใหม่: เช็กว่าเลข PO ของ PDF หน้านี้ มีใน Excel หรือไม่
+                        const hasPo = r.pdfOrderNumber && r.pdfOrderNumber !== ORDER_NUMBER_NOT_FOUND;
+                        const matchInExcel = hasPo && excelRows.some(row =>
+                          row.ponumber && row.ponumber.toString().trim() === r.pdfOrderNumber.toString().trim()
+                        );
+
+                        return (
+                          <tr
+                            key={r.id || idx}
+                            className={isSelected ? 'selected' : ''}
+                            onClick={() => setSelectedPage(r)}
+                            style={{ backgroundColor: isSelected ? 'var(--teal-light)' : '' }}
+                          >
+                            <td className="pageSelectCell">
+                              <Checkbox
+                                checked={isPrintSelected}
+                                onChange={() => togglePrintPage(r.id)}
+                                onClick={(event) => event.stopPropagation()}
+                                aria-label={`เลือก PO ${r.pdfOrderNumber} สำหรับพิมพ์`}
+                              />
+                              <span className="mono" style={{ fontWeight: 600, color: 'var(--teal)', display: 'block', fontSize: '11px', marginTop: '4px' }}>
+                                หน้า {r.pages.join(', ')}
+                              </span>                            </td>
+                            <td className="addrBefore" style={{ color: 'var(--ink)', fontWeight: 500 }}>
+                              {r.pdfOrderNumber || ORDER_NUMBER_NOT_FOUND}
+                            </td>
+                            <td style={{ textAlign: 'center' }}>
+                              {hasPo ? (
+                                excelRows.length === 0
+                                  ? <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: '12px', backgroundColor: '#F3F4F6', color: '#4B5563', fontSize: '12px', fontWeight: 600 }}>เฉพาะ PDF</span>
+                                  : matchInExcel
+                                    ? <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: '12px', backgroundColor: '#E8F5E9', color: '#2E7D32', fontSize: '12px', fontWeight: 600 }}>✅ ตรงกัน</span>
+                                    : <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: '12px', backgroundColor: '#FFEBEE', color: '#C62828', fontSize: '12px', fontWeight: 600 }}>❌ ไม่พบ</span>
+                              ) : '-'}
+                            </td>
+                            <td className="addrBefore" style={{ color: 'var(--ink)' }}>{r.pdfSource || 'ไม่พบต้นทาง'}</td>
+                            <td className="addrBefore" style={{ color: 'var(--ink)', fontWeight: 500 }}>
+                              {r.pdfDestination && r.pdfDestination !== 'ไม่พบจังหวัดปลายทาง' ? (
+                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>
+                                  {r.pdfDestination}
+                                </span>
+                              ) : (
+                                <span style={{ color: 'var(--stamp-red)' }}>{r.pdfDestination}</span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              {paginationControls}
+            </Card>
+
+            <Card className="panel excelDataPanel">
+              <h2 style={{ color: 'var(--teal-dark)', borderBottom: '2px solid var(--teal-light)' }}>
+                ข้อมูลจาก Excel <span className="count">{filteredExcelRows.length > 0 ? `(${filteredExcelRows.length} แถว)` : ''}</span>
+              </h2>
+              <div className="tableScroll">
+                <table>
+                  <thead>
+                    <tr>
+                      <th style={{ backgroundColor: '#F8FAF9', color: 'var(--teal-dark)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          PO Number
+                          <ColumnFilterDropdown options={excelOptions.ponumber} selected={excelFilters.ponumber} onChange={(val) => handleExcelFilterChange('ponumber', val)} />
+                        </div>
+                      </th>
+                      <th style={{ backgroundColor: '#F8FAF9', color: 'var(--teal-dark)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          Ship-to party
+                          <ColumnFilterDropdown options={excelOptions.shipToParty} selected={excelFilters.shipToParty} onChange={(val) => handleExcelFilterChange('shipToParty', val)} />
+                        </div>
+                      </th>
+                      <th style={{ backgroundColor: '#F8FAF9', color: 'var(--teal-dark)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          Sold To Party
+                          <ColumnFilterDropdown options={excelOptions.soldToParty} selected={excelFilters.soldToParty} onChange={(val) => handleExcelFilterChange('soldToParty', val)} />
+                        </div>
+                      </th>
+                      <th style={{ backgroundColor: '#F8FAF9', color: 'var(--teal-dark)' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                          Product Description
+                          <ColumnFilterDropdown options={excelOptions.productdescription} selected={excelFilters.productdescription} onChange={(val) => handleExcelFilterChange('productdescription', val)} />
+                        </div>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {!filteredExcelRows.length ? (
+                      <tr><td colSpan="4" style={{ color: 'var(--ink-soft)', padding: '30px 16px', textAlign: 'center' }}>{excelRows.length > 0 ? 'ไม่พบข้อมูลที่ตรงกับตัวกรอง' : 'อัปโหลดไฟล์ Excel เพื่อแสดงข้อมูล'}</td></tr>
+                    ) : (
+                      filteredExcelRows.map((row, index) => (
+                        <tr key={`${row.source}-${index}`}>
+                          <td style={{ fontWeight: 500 }}>{row.ponumber || '—'}</td>
+                          <td>{row.shipToParty || '—'}</td>
+                          <td>{row.soldToParty || '—'}</td>
+                          <td>{row.productdescription || '—'}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          </div>
+
+          <Card className="panel" style={{ backgroundColor: '#FCFDFD' }}>
+            <h2 style={{ color: 'var(--teal-dark)', borderBottom: '2px solid var(--teal-light)' }}>ตัวอย่างหน้าเอกสาร</h2>
+            <div className="previewBody">
+              <div className="previewControls" aria-label="ควบคุมตัวอย่างเอกสาร">
+                <Button variant="outline" size="icon" disabled={selectedResultIndex <= 0} onClick={() => selectPreviewPage(selectedResultIndex - 1)} aria-label="หน้าก่อนหน้า">‹</Button>
+                <Select
+                  value={activeSelectedPage?.id || ''}
+                  onChange={(event) => selectPreviewPage(filteredResults.findIndex(result => result.id === event.target.value))}
+                  disabled={!filteredResults.length}
+                  aria-label="เลือกหน้าเอกสาร"
+                >
+                  {!filteredResults.length && <option value="">ยังไม่มีหน้า</option>}
+                  {filteredResults.map(result => (
+                    <option key={result.id} value={result.id}>
+                      {result.pdfOrderNumber !== ORDER_NUMBER_NOT_FOUND
+                        ? `PO: ${result.pdfOrderNumber} (หน้า ${result.pages.join(', ')})`
+                        : `หน้า ${result.pages[0]}`}
+                    </option>
+                  ))}
+                </Select>
+                <Button variant="outline" size="icon" disabled={selectedResultIndex < 0 || selectedResultIndex >= filteredResults.length - 1} onClick={() => selectPreviewPage(selectedResultIndex + 1)} aria-label="หน้าถัดไป">›</Button>
+                <div style={{ width: '1px', height: '24px', backgroundColor: 'var(--line)', margin: '0 8px' }}></div>
+
+                <Button variant="outline" size="icon" disabled={!activeSelectedPage || previewZoom <= 0.5} onClick={() => setPreviewZoom(value => Math.max(0.5, value - 0.25))} aria-label="ซูมออก">−</Button>
+                <span className="zoomValue" style={{ color: 'var(--teal-dark)', fontWeight: 600 }}>{Math.round(previewZoom * 100)}%</span>
+                <Button variant="outline" size="icon" disabled={!activeSelectedPage || previewZoom >= 2} onClick={() => setPreviewZoom(value => Math.min(2, value + 0.25))} aria-label="ซูมเข้า">+</Button>
+                <Button variant="ghost" size="sm" disabled={!activeSelectedPage || previewZoom === 1} onClick={() => setPreviewZoom(1)} style={{ color: 'var(--teal)' }}>รีเซ็ต</Button>
+              </div>
+              {!activeSelectedPage ? (
+                <div className="previewEmpty" style={{ backgroundColor: '#F0F4F4', borderRadius: '8px', border: '1px dashed var(--line)' }}>
+                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--line)" strokeWidth="1.5" style={{ marginBottom: '16px' }}><rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" /></svg>
+                  <br />
+                  เลือกแถวในตารางด้านซ้าย<br />เพื่อดูตัวอย่างหน้านั้น
+                </div>
+              ) : (
+                <>
+                  <div className="previewCanvas" style={{ backgroundColor: '#F8FAF9', padding: '12px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    {activeSelectedPage.thumbDataUrls.map((thumb, idx) => (
+                      <div key={idx} style={{ position: 'relative' }}>
+                        <span style={{ position: 'absolute', top: '8px', left: '8px', background: 'rgba(0,0,0,0.6)', color: 'white', padding: '2px 8px', borderRadius: '4px', fontSize: '12px' }}>
+                          หน้า {activeSelectedPage.pages[idx]}
+                        </span>
+                        <img src={thumb} alt={`Page ${activeSelectedPage.pages[idx]}`} style={{ width: `${previewZoom * 100}%`, borderRadius: '4px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }} />
+                      </div>
+                    ))}
+                  </div>
+                  <div className="previewDetail" style={{ backgroundColor: '#fff', padding: '16px', borderRadius: '8px', border: '1px solid var(--line)' }}>
+                    <dl>
+                      <dt>หน้า</dt><dd className="mono" style={{ fontWeight: 600, color: 'var(--teal)' }}>{activeSelectedPage.pages.join(', ')} / {filteredResults.length} PO</dd>
+                      <dt>แหล่งข้อความ</dt>
+                      <dd>
+                        {activeSelectedPage.source === 'text-layer' ? 'ข้อความในไฟล์ PDF' : 'OCR (ไม่พบชั้นข้อความ)'}
+                        {activeSelectedPage.source === 'ocr' && activeSelectedPage.ocrConfidence !== null && (
+                          <span className={`tag ${activeSelectedPage.ocrConfidence < OCR_LOW_CONFIDENCE ? 'tagReview' : 'tagMatch'}`} style={{ marginLeft: 8 }}>
+                            ความมั่นใจ OCR {Math.round(activeSelectedPage.ocrConfidence)}%
+                          </span>
+                        )}
+                      </dd>
+                      <dt>ต้นทางจาก PDF</dt><dd style={{ fontWeight: 500 }}>{activeSelectedPage.pdfSource || 'ไม่พบต้นทาง'}</dd>
+
+                      <dt>ปลายทางจาก PDF</dt>
+                      <dd>
+                        <span className={`tag ${activeSelectedPage.pdfDestination !== 'ไม่พบจังหวัดปลายทาง' ? 'tagMatch' : 'tagMismatch'}`} style={{ fontSize: '12.5px', padding: '4px 10px' }}>
+                          {activeSelectedPage.pdfDestination || 'ไม่พบปลายทาง'}
+                        </span>
+                      </dd>
+                    </dl>
+                  </div>
+                </>
+              )}
+            </div>
+          </Card>
+        </div>
+
+        <footer className="note" style={{ textAlign: 'center', marginTop: '40px' }}>
+          by Process Management Transport 2026
+        </footer>
+      </main>
+
+      <div className="printArea">
+        {printPagesList
+          .flatMap(p => p.thumbDataUrls.map((thumb, idx) => ({ thumb, pageNum: p.pages[idx] })))
+          .map((item, i) => (
+            <div key={i} className="printPage">
+              {item.thumb && <img src={item.thumb} alt={`Print Page ${item.pageNum}`} />}
+            </div>
+          ))}
+      </div>
+    </div>
+  );
+}

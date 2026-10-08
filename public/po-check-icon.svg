@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title desc">
+  <title id="title">PO Check</title>
+  <desc id="desc">Document with a check mark</desc>
+  <rect width="64" height="64" rx="12" fill="#2B5A66"/>
+  <path d="M18 10h20l10 10v32H18z" fill="#F3F5F1"/>
+  <path d="M38 10v12h12" fill="#D7DED5"/>
+  <path d="m24 38 6 6 12-14" fill="none" stroke="#2F7A4D" stroke-linecap="round" stroke-linejoin="round" stroke-width="5"/>
+</svg>

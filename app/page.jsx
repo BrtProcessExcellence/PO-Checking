@@ -686,29 +686,23 @@ function ColumnFilterDropdown({ options, selected, onChange }) {
   const isActive = selected.length > 0;
 
   return (
-    <details className="tableFilterDropdown" style={{ position: 'relative', display: 'inline-block' }}>
-      <style>{`.tableFilterDropdown summary::-webkit-details-marker { display: none; }`}</style>
-      <summary style={{ cursor: 'pointer', listStyle: 'none', color: isActive ? 'var(--teal)' : 'var(--ink-soft)', display: 'flex', alignItems: 'center' }}>
+    <details className="tableFilterDropdown">
+      <summary className={isActive ? 'active' : ''}>
         <svg width="14" height="14" viewBox="0 0 24 24" fill={isActive ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
         </svg>
       </summary>
-      <div onClick={(e) => e.stopPropagation()} style={{
-        position: 'absolute', top: '100%', right: 0, minWidth: '220px', background: '#fff',
-        border: '1px solid var(--line)', borderRadius: '6px', padding: '8px', zIndex: 999,
-        boxShadow: '0 8px 24px rgba(0,0,0,0.12)', maxHeight: '300px', overflowY: 'auto',
-        fontWeight: 'normal', color: 'var(--ink)', textAlign: 'left'
-      }}>
-        <div style={{ display: 'flex', gap: '8px', marginBottom: '8px', borderBottom: '1px solid var(--line)', paddingBottom: '8px' }}>
-          <button type="button" onClick={() => onChange([...options])} style={{ fontSize: '11px', cursor: 'pointer', border: 'none', background: 'none', color: 'var(--teal)', fontWeight: 600, padding: 0 }}>เลือกทั้งหมด</button>
-          <button type="button" onClick={() => onChange([])} style={{ fontSize: '11px', cursor: 'pointer', border: 'none', background: 'none', color: 'var(--ink-soft)', padding: 0 }}>ล้าง</button>
+      <div className="tableFilterMenu" onClick={(e) => e.stopPropagation()}>
+        <div className="tableFilterActions">
+          <button type="button" className="tableFilterSelectAll" onClick={() => onChange([...options])}>เลือกทั้งหมด</button>
+          <button type="button" className="tableFilterClear" onClick={() => onChange([])}>ล้าง</button>
         </div>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-          {options.length === 0 && <div style={{ fontSize: '12px', color: 'var(--ink-soft)' }}>ไม่มีข้อมูล</div>}
+        <div className="tableFilterOptions">
+          {options.length === 0 && <div className="tableFilterEmpty">ไม่มีข้อมูล</div>}
           {options.map((opt, idx) => (
-            <label key={idx} style={{ display: 'flex', gap: '8px', alignItems: 'center', fontSize: '12.5px', padding: '4px', cursor: 'pointer', borderRadius: '4px' }}>
-              <input type="checkbox" checked={selected.includes(opt)} onChange={() => toggleOption(opt)} style={{ accentColor: 'var(--teal)', margin: 0 }} />
-              <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={opt}>{opt || '(ว่าง)'}</span>
+            <label key={idx} className="tableFilterOption">
+              <input type="checkbox" checked={selected.includes(opt)} onChange={() => toggleOption(opt)} />
+              <span title={opt}>{opt || '(ว่าง)'}</span>
             </label>
           ))}
         </div>
@@ -1030,9 +1024,9 @@ export default function PoChecker() {
   };
 
   const paginationControls = filteredResults.length > RESULTS_PER_PAGE ? (
-    <div className="pagination" aria-label="เลือกหน้าผลการตรวจสอบ" style={{ padding: '10px 16px', background: 'var(--card)' }}>
+    <div className="pagination paginationCompact" aria-label="เลือกหน้าผลการตรวจสอบ">
       <Button variant="outline" size="sm" disabled={currentResultsPage === 1} onClick={() => setResultsPage(currentResultsPage - 1)}>ก่อนหน้า</Button>
-      <span style={{ fontWeight: 500, color: 'var(--ink)' }}>หน้า {currentResultsPage} / {totalResultPages}</span>
+      <span className="paginationCurrent">หน้า {currentResultsPage} / {totalResultPages}</span>
       <Button variant="outline" size="sm" disabled={currentResultsPage === totalResultPages} onClick={() => setResultsPage(currentResultsPage + 1)}>ถัดไป</Button>
     </div>
   ) : null;
@@ -1063,23 +1057,18 @@ export default function PoChecker() {
       <header className="po-header">
         <div>
           <div className="brandLine">
-            <div className="badge">PO Checking</div>
+            <div className="badge">Transport PO Sorting Tool</div>
           </div>
-          <h1 style={{ color: 'var(--teal-dark)' }}>ระบบตรวจสอบปลายทางใบสั่งซื้อสินค้า</h1>
+          <h1 className="po-title">ระบบคัดแยกเอกสารใบสั่งซื้อสินค้า</h1>
           <p>อัปโหลด PDF ใบสั่งซื้อสินค้า และไฟล์ Excel รายการสินค้า/ที่อยู่ เพื่อดูข้อมูลแยกตามไฟล์</p>
         </div>
-        <img className="brandIcon" src="/po-checking-favicon.svg" alt="" aria-hidden="true" />
+        <img className="brandIcon" src="/Brf Logos 2.png" alt="" aria-hidden="true" />
       </header>
 
       <main className="po-main">
         <section className="uploads">
           <Card
-            className={`dropzone ${pdfFiles.length ? 'filled' : ''}`}
-            style={{
-              position: 'relative',
-              borderColor: isPdfDragging ? 'var(--teal)' : '',
-              backgroundColor: isPdfDragging ? 'var(--stamp-green-bg)' : ''
-            }}
+            className={`dropzone ${pdfFiles.length ? 'filled' : ''} ${isPdfDragging ? 'dragging' : ''}`}
             onDragOver={handlePdfDragOver}
             onDragLeave={handlePdfDragLeave}
             onDrop={handlePdfDrop}
@@ -1089,37 +1078,26 @@ export default function PoChecker() {
                 type="button"
                 onClick={clearPdfFiles}
                 disabled={isProcessing}
-                style={{
-                  position: 'absolute', top: '8px', right: '8px',
-                  background: '#FFEBEB', border: '1px solid #FFCDCD', color: '#B4472A',
-                  cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center',
-                  justifyContent: 'center', borderRadius: '50%', zIndex: 10,
-                  transition: 'all 0.2s ease'
-                }}
+                className="clearFilesButton"
                 title="ล้างไฟล์ PDF"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
               </button>
             )}
-            <label style={{ display: 'flex', alignItems: 'center', gap: '14px', width: '100%', cursor: 'pointer' }}>
+            <label className="uploadLabel">
               <div className="icon">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" /></svg>
+                <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" /></svg>
               </div>
               <div className="meta">
-                <div className="label" style={{ color: 'var(--teal-dark)' }}>ไฟล์ PDF ใบสั่งซื้อสินค้า (เลือกได้หลายไฟล์)</div>
-                <div className="file" style={{ color: isPdfDragging ? 'var(--teal)' : '' }}>{pdfFiles.length ? `${pdfFiles.length} ไฟล์โหลดแล้ว` : 'ลากไฟล์มาวาง หรือ คลิกเพื่อเลือก'}</div>
+                <div className="label">ไฟล์ PDF ใบสั่งซื้อสินค้า (เลือกได้หลายไฟล์)</div>
+                <div className={`file ${isPdfDragging ? 'dragging' : ''}`}>{pdfFiles.length ? `${pdfFiles.length} ไฟล์โหลดแล้ว` : 'ลากไฟล์มาวาง หรือ คลิกเพื่อเลือก'}</div>
               </div>
-              <input type="file" accept="application/pdf" multiple onChange={handlePdfChange} disabled={isProcessing} style={{ display: 'none' }} />
+              <input className="hiddenFileInput" type="file" accept="application/pdf" multiple onChange={handlePdfChange} disabled={isProcessing} />
             </label>
           </Card>
 
           <Card
-            className={`dropzone ${excelSources.length ? 'filled' : ''}`}
-            style={{
-              position: 'relative',
-              borderColor: isExcelDragging ? 'var(--teal)' : '',
-              backgroundColor: isExcelDragging ? 'var(--stamp-green-bg)' : ''
-            }}
+            className={`dropzone ${excelSources.length ? 'filled' : ''} ${isExcelDragging ? 'dragging' : ''}`}
             onDragOver={handleExcelDragOver}
             onDragLeave={handleExcelDragLeave}
             onDrop={handleExcelDrop}
@@ -1128,34 +1106,28 @@ export default function PoChecker() {
               <button
                 type="button"
                 onClick={clearExcelFiles}
-                style={{
-                  position: 'absolute', top: '8px', right: '8px',
-                  background: '#FFEBEB', border: '1px solid #FFCDCD', color: '#B4472A',
-                  cursor: 'pointer', padding: '4px', display: 'flex', alignItems: 'center',
-                  justifyContent: 'center', borderRadius: '50%', zIndex: 10,
-                  transition: 'all 0.2s ease'
-                }}
+                className="clearFilesButton"
                 title="ล้างไฟล์ Excel"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
               </button>
             )}
-            <label style={{ display: 'flex', alignItems: 'center', gap: '14px', width: '100%', cursor: 'pointer' }}>
+            <label className="uploadLabel">
               <div className="icon">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><line x1="3" y1="9" x2="21" y2="9" /><line x1="9" y1="21" x2="9" y2="9" /></svg>
+                <svg width="30" height="30"  viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><line x1="3" y1="9" x2="21" y2="9" /><line x1="9" y1="21" x2="9" y2="9" /></svg>
               </div>
               <div className="meta">
-                <div className="label" style={{ color: 'var(--teal-dark)' }}>ไฟล์ Excel (ship / description)</div>
-                <div className="file" style={{ color: isExcelDragging ? 'var(--teal)' : '' }}>{excelSources.length ? `${excelRows.length} แถวจาก ${excelSources.length} ไฟล์โหลดแล้ว` : 'ลากไฟล์มาวาง หรือ คลิกเพื่อเลือก'}</div>
+                <div className="label">ไฟล์ Excel (ship / description)</div>
+                <div className={`file ${isExcelDragging ? 'dragging' : ''}`}>{excelSources.length ? `${excelRows.length} แถวจาก ${excelSources.length} ไฟล์โหลดแล้ว` : 'ลากไฟล์มาวาง หรือ คลิกเพื่อเลือก'}</div>
               </div>
-              <input type="file" accept=".xlsx,.xls,.csv" multiple onChange={handleExcelChange} style={{ display: 'none' }} />
+              <input className="hiddenFileInput" type="file" accept=".xlsx,.xls,.csv" multiple onChange={handleExcelChange} />
             </label>
           </Card>
         </section>
 
-        <Card className="toolbar" style={{ backgroundColor: 'rgba(255,255,255,0.95)' }}>
+        <Card className="toolbar mainToolbar">
           <div className="field">
-            <label htmlFor="customer-filter" style={{ fontWeight: 600 }}>Customer</label>
+            <label htmlFor="customer-filter" className="customerLabel">Customer</label>
             <Select id="customer-filter" value={customer} onChange={handleCustomerChange} disabled={isProcessing}>
               <option value="Lotus">Lotus</option>
               <option value="CJ Express">CJ Express</option>
@@ -1164,7 +1136,7 @@ export default function PoChecker() {
             </Select>
           </div>
 
-          <Button onClick={processPdf} disabled={!pdfFiles.length || isProcessing} style={{ boxShadow: '0 4px 12px rgba(43,90,102,0.2)' }}>
+          <Button className="processButton" onClick={processPdf} disabled={!pdfFiles.length || isProcessing}>
             {isProcessing ? 'กำลังประมวลผล...' : 'ประมวลผล PDF'}
           </Button>
 
@@ -1200,7 +1172,7 @@ export default function PoChecker() {
 
           <div className="spacer"></div>
 
-          <div className="pageIndicator" style={{ backgroundColor: 'var(--teal-light)', padding: '4px 12px', borderRadius: '20px', color: 'var(--teal-dark)', fontWeight: 600 }}>
+          <div className="pageIndicator">
             {pageResults.length === 0 ? 'ยังไม่มีข้อมูล' :
               selectedSources.length || selectedSites.length || selectedItems.length ? `พบ ${filteredResults.length} จาก ${pageResults.length} หน้า` : `ทั้งหมด ${pageResults.length} หน้า`}
           </div>
@@ -1209,9 +1181,9 @@ export default function PoChecker() {
             variant="outline"
             disabled={!selectedPrintResults.length}
             onClick={() => triggerPrint(selectedPrintResults)}
-            style={{ color: 'white', borderColor: 'var(--teal)' }}
+            className="printButton"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px' }}><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>
+            <svg className="buttonIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>
             พิมพ์หน้าที่เลือก{selectedPrintResults.length > 0 ? ` (${selectedPrintResults.length})` : ''}
           </Button>
         </Card>
@@ -1219,14 +1191,11 @@ export default function PoChecker() {
         {status.active && (
           <div className="statusBar active">
             <div className="statusRow">
-              <span style={{ fontWeight: 500, color: 'var(--teal-dark)' }}>{status.text}</span>
-              <span style={{ fontWeight: 600 }}>{status.total > 0 ? `${status.current}/${status.total}` : ''}</span>
+              <span className="statusText">{status.text}</span>
+              <span className="statusCount">{status.total > 0 ? `${status.current}/${status.total}` : ''}</span>
             </div>
             <div className="progressTrack">
-              <div
-                className="progressFill"
-                style={{ width: status.total ? `${Math.round((status.current / status.total) * 100)}%` : '0%', backgroundColor: 'var(--teal)' }}
-              ></div>
+              <progress className="progressFill" value={status.current} max={status.total || 1} aria-label="ความคืบหน้าการประมวลผล" />
             </div>
           </div>
         )}
@@ -1234,7 +1203,7 @@ export default function PoChecker() {
         <div className="workspace">
           <div className='panelLeft'>
             <Card className="panel">
-              <h2 style={{ color: 'var(--teal-dark)', borderBottom: '2px solid var(--teal-light)' }}>
+              <h2 className="sectionHeading">
                 ผลการตรวจสอบรายหน้า <span className="count">{pageResults.length > 0 ? `(${filteredResults.length} หน้า)` : ''}</span>
               </h2>
 
@@ -1244,7 +1213,7 @@ export default function PoChecker() {
                 <table>
                   <thead>
                     <tr>
-                      <th style={{ width: '46px', backgroundColor: '#F8FAF9' }}>
+                      <th className="selectColumn">
                         <Checkbox
                           checked={allFilteredPagesSelected}
                           onChange={toggleFilteredPrintPages}
@@ -1252,17 +1221,17 @@ export default function PoChecker() {
                           aria-label="เลือกทุกหน้าที่แสดง"
                         />
                       </th>
-                      <th style={{ backgroundColor: '#F8FAF9', color: 'var(--teal-dark)' }}>PO Number</th>
-                      <th style={{ backgroundColor: '#F8FAF9', color: 'var(--teal-dark)', textAlign: 'center' }}>เทียบ Excel</th>
-                      <th style={{ backgroundColor: '#F8FAF9', color: 'var(--teal-dark)' }}>ต้นทางจาก PDF</th>
-                      <th style={{ backgroundColor: '#F8FAF9', color: 'var(--teal-dark)' }}>ปลายทางจาก PDF</th>
+                      <th>PO Number</th>
+                      <th className="comparisonColumn">เปรียบเทียบกับ Excel</th>
+                      <th>ต้นทางจาก PDF</th>
+                      <th>ปลายทางจาก PDF</th>
                     </tr>
                   </thead>
                   <tbody>
                     {pageResults.length === 0 ? (
-                      <tr><td colSpan="5" style={{ color: 'var(--ink-soft)', padding: '30px 16px', textAlign: 'center' }}>อัปโหลดไฟล์แล้วกด “ประมวลผล PDF”</td></tr>
+                      <tr><td colSpan="5" className="tableEmpty">อัปโหลดไฟล์แล้วกด “ประมวลผล PDF”</td></tr>
                     ) : filteredResults.length === 0 ? (
-                      <tr><td colSpan="5" style={{ color: 'var(--stamp-red)', padding: '30px 16px', textAlign: 'center', backgroundColor: 'var(--stamp-red-bg)' }}>ไม่พบหน้าที่ตรงกับตัวกรองนี้</td></tr>
+                      <tr><td colSpan="5" className="tableEmpty tableEmptyWarning">ไม่พบหน้าที่ตรงกับตัวกรองนี้</td></tr>
                     ) : (
                       visibleResults.map((r, idx) => {
                         const isSelected = selectedPage?.id === r.id;
@@ -1279,7 +1248,6 @@ export default function PoChecker() {
                             key={r.id || idx}
                             className={isSelected ? 'selected' : ''}
                             onClick={() => setSelectedPage(r)}
-                            style={{ backgroundColor: isSelected ? 'var(--teal-light)' : '' }}
                           >
                             <td className="pageSelectCell">
                               <Checkbox
@@ -1288,30 +1256,30 @@ export default function PoChecker() {
                                 onClick={(event) => event.stopPropagation()}
                                 aria-label={`เลือก PO ${r.pdfOrderNumber} สำหรับพิมพ์`}
                               />
-                              <span className="mono" style={{ fontWeight: 600, color: 'var(--teal)', display: 'block', fontSize: '11px', marginTop: '4px' }}>
+                              <span className="mono pageNumber">
                                 หน้า {r.pages.join(', ')}
                               </span>                            </td>
-                            <td className="addrBefore" style={{ color: 'var(--ink)', fontWeight: 500 }}>
+                            <td className="addrBefore dataCell">
                               {r.pdfOrderNumber || ORDER_NUMBER_NOT_FOUND}
                             </td>
-                            <td style={{ textAlign: 'center' }}>
+                            <td className="comparisonCell">
                               {hasPo ? (
                                 excelRows.length === 0
-                                  ? <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: '12px', backgroundColor: '#F3F4F6', color: '#4B5563', fontSize: '12px', fontWeight: 600 }}>เฉพาะ PDF</span>
+                                  ? <span className="comparisonBadge comparisonBadgePdf">เฉพาะ PDF</span>
                                   : matchInExcel
-                                    ? <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: '12px', backgroundColor: '#E8F5E9', color: '#2E7D32', fontSize: '12px', fontWeight: 600 }}>✅ ตรงกัน</span>
-                                    : <span style={{ display: 'inline-block', padding: '2px 8px', borderRadius: '12px', backgroundColor: '#FFEBEE', color: '#C62828', fontSize: '12px', fontWeight: 600 }}>❌ ไม่พบ</span>
+                                    ? <span className="comparisonBadge comparisonBadgeMatch">✅ ตรงกัน</span>
+                                    : <span className="comparisonBadge comparisonBadgeMissing">❌ ไม่พบ</span>
                               ) : '-'}
                             </td>
-                            <td className="addrBefore" style={{ color: 'var(--ink)' }}>{r.pdfSource || 'ไม่พบต้นทาง'}</td>
-                            <td className="addrBefore" style={{ color: 'var(--ink)', fontWeight: 500 }}>
+                            <td className="addrBefore dataCell">{r.pdfSource || 'ไม่พบต้นทาง'}</td>
+                            <td className="addrBefore dataCell">
                               {r.pdfDestination && r.pdfDestination !== 'ไม่พบจังหวัดปลายทาง' ? (
-                                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                                <span className="destinationValue">
                                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>
                                   {r.pdfDestination}
                                 </span>
                               ) : (
-                                <span style={{ color: 'var(--stamp-red)' }}>{r.pdfDestination}</span>
+                                <span className="destinationMissing">{r.pdfDestination}</span>
                               )}
                             </td>
                           </tr>
@@ -1325,33 +1293,33 @@ export default function PoChecker() {
             </Card>
 
             <Card className="panel excelDataPanel">
-              <h2 style={{ color: 'var(--teal-dark)', borderBottom: '2px solid var(--teal-light)' }}>
+              <h2 className="sectionHeading">
                 ข้อมูลจาก Excel <span className="count">{filteredExcelRows.length > 0 ? `(${filteredExcelRows.length} แถว)` : ''}</span>
               </h2>
               <div className="tableScroll">
                 <table>
                   <thead>
                     <tr>
-                      <th style={{ backgroundColor: '#F8FAF9', color: 'var(--teal-dark)' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <th>
+                        <div className="excelColumnHeader">
                           PO Number
                           <ColumnFilterDropdown options={excelOptions.ponumber} selected={excelFilters.ponumber} onChange={(val) => handleExcelFilterChange('ponumber', val)} />
                         </div>
                       </th>
-                      <th style={{ backgroundColor: '#F8FAF9', color: 'var(--teal-dark)' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <th>
+                        <div className="excelColumnHeader">
                           Ship-to party
                           <ColumnFilterDropdown options={excelOptions.shipToParty} selected={excelFilters.shipToParty} onChange={(val) => handleExcelFilterChange('shipToParty', val)} />
                         </div>
                       </th>
-                      <th style={{ backgroundColor: '#F8FAF9', color: 'var(--teal-dark)' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <th>
+                        <div className="excelColumnHeader">
                           Sold To Party
                           <ColumnFilterDropdown options={excelOptions.soldToParty} selected={excelFilters.soldToParty} onChange={(val) => handleExcelFilterChange('soldToParty', val)} />
                         </div>
                       </th>
-                      <th style={{ backgroundColor: '#F8FAF9', color: 'var(--teal-dark)' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                      <th>
+                        <div className="excelColumnHeader">
                           Product Description
                           <ColumnFilterDropdown options={excelOptions.productdescription} selected={excelFilters.productdescription} onChange={(val) => handleExcelFilterChange('productdescription', val)} />
                         </div>
@@ -1360,11 +1328,11 @@ export default function PoChecker() {
                   </thead>
                   <tbody>
                     {!filteredExcelRows.length ? (
-                      <tr><td colSpan="4" style={{ color: 'var(--ink-soft)', padding: '30px 16px', textAlign: 'center' }}>{excelRows.length > 0 ? 'ไม่พบข้อมูลที่ตรงกับตัวกรอง' : 'อัปโหลดไฟล์ Excel เพื่อแสดงข้อมูล'}</td></tr>
+                      <tr><td colSpan="4" className="tableEmpty">{excelRows.length > 0 ? 'ไม่พบข้อมูลที่ตรงกับตัวกรอง' : 'อัปโหลดไฟล์ Excel เพื่อแสดงข้อมูล'}</td></tr>
                     ) : (
                       filteredExcelRows.map((row, index) => (
                         <tr key={`${row.source}-${index}`}>
-                          <td style={{ fontWeight: 500 }}>{row.ponumber || '—'}</td>
+                          <td className="dataCell">{row.ponumber || '—'}</td>
                           <td>{row.shipToParty || '—'}</td>
                           <td>{row.soldToParty || '—'}</td>
                           <td>{row.productdescription || '—'}</td>
@@ -1377,8 +1345,8 @@ export default function PoChecker() {
             </Card>
           </div>
 
-          <Card className="panel" style={{ backgroundColor: '#FCFDFD' }}>
-            <h2 style={{ color: 'var(--teal-dark)', borderBottom: '2px solid var(--teal-light)' }}>ตัวอย่างหน้าเอกสาร</h2>
+          <Card className="panel previewPanel">
+            <h2 className="sectionHeading">ตัวอย่างหน้าเอกสาร</h2>
             <div className="previewBody">
               <div className="previewControls" aria-label="ควบคุมตัวอย่างเอกสาร">
                 <Button variant="outline" size="icon" disabled={selectedResultIndex <= 0} onClick={() => selectPreviewPage(selectedResultIndex - 1)} aria-label="หน้าก่อนหน้า">‹</Button>
@@ -1398,48 +1366,48 @@ export default function PoChecker() {
                   ))}
                 </Select>
                 <Button variant="outline" size="icon" disabled={selectedResultIndex < 0 || selectedResultIndex >= filteredResults.length - 1} onClick={() => selectPreviewPage(selectedResultIndex + 1)} aria-label="หน้าถัดไป">›</Button>
-                <div style={{ width: '1px', height: '24px', backgroundColor: 'var(--line)', margin: '0 8px' }}></div>
+                <div className="previewDivider"></div>
 
                 <Button variant="outline" size="icon" disabled={!activeSelectedPage || previewZoom <= 0.5} onClick={() => setPreviewZoom(value => Math.max(0.5, value - 0.25))} aria-label="ซูมออก">−</Button>
-                <span className="zoomValue" style={{ color: 'var(--teal-dark)', fontWeight: 600 }}>{Math.round(previewZoom * 100)}%</span>
+                <span className="zoomValue">{Math.round(previewZoom * 100)}%</span>
                 <Button variant="outline" size="icon" disabled={!activeSelectedPage || previewZoom >= 2} onClick={() => setPreviewZoom(value => Math.min(2, value + 0.25))} aria-label="ซูมเข้า">+</Button>
-                <Button variant="ghost" size="sm" disabled={!activeSelectedPage || previewZoom === 1} onClick={() => setPreviewZoom(1)} style={{ color: 'var(--teal)' }}>รีเซ็ต</Button>
+                <Button variant="ghost" size="sm" disabled={!activeSelectedPage || previewZoom === 1} onClick={() => setPreviewZoom(1)}>รีเซ็ต</Button>
               </div>
               {!activeSelectedPage ? (
-                <div className="previewEmpty" style={{ backgroundColor: '#F0F4F4', borderRadius: '8px', border: '1px dashed var(--line)' }}>
-                  <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--line)" strokeWidth="1.5" style={{ marginBottom: '16px' }}><rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" /></svg>
+                <div className="previewEmpty">
+                  <svg className="previewEmptyIcon" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--line)" strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" /></svg>
                   <br />
                   เลือกแถวในตารางด้านซ้าย<br />เพื่อดูตัวอย่างหน้านั้น
                 </div>
               ) : (
                 <>
-                  <div className="previewCanvas" style={{ backgroundColor: '#F8FAF9', padding: '12px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <div className="previewCanvas">
                     {activeSelectedPage.thumbDataUrls.map((thumb, idx) => (
-                      <div key={idx} style={{ position: 'relative' }}>
-                        <span style={{ position: 'absolute', top: '8px', left: '8px', background: 'rgba(0,0,0,0.6)', color: 'white', padding: '2px 8px', borderRadius: '4px', fontSize: '12px' }}>
+                      <div key={idx} className="previewPage">
+                        <span className="previewPageNumber">
                           หน้า {activeSelectedPage.pages[idx]}
                         </span>
-                        <img src={thumb} alt={`Page ${activeSelectedPage.pages[idx]}`} style={{ width: `${previewZoom * 100}%`, borderRadius: '4px', boxShadow: '0 2px 8px rgba(0,0,0,0.1)' }} />
+                        <img className={`previewImage previewZoom${Math.round(previewZoom * 100)}`} src={thumb} alt={`Page ${activeSelectedPage.pages[idx]}`} />
                       </div>
                     ))}
                   </div>
-                  <div className="previewDetail" style={{ backgroundColor: '#fff', padding: '16px', borderRadius: '8px', border: '1px solid var(--line)' }}>
+                  <div className="previewDetail">
                     <dl>
-                      <dt>หน้า</dt><dd className="mono" style={{ fontWeight: 600, color: 'var(--teal)' }}>{activeSelectedPage.pages.join(', ')} / {filteredResults.length} PO</dd>
+                      <dt>หน้า</dt><dd className="mono pageDetailValue">{activeSelectedPage.pages.join(', ')} / {filteredResults.length} PO</dd>
                       <dt>แหล่งข้อความ</dt>
                       <dd>
                         {activeSelectedPage.source === 'text-layer' ? 'ข้อความในไฟล์ PDF' : 'OCR (ไม่พบชั้นข้อความ)'}
                         {activeSelectedPage.source === 'ocr' && activeSelectedPage.ocrConfidence !== null && (
-                          <span className={`tag ${activeSelectedPage.ocrConfidence < OCR_LOW_CONFIDENCE ? 'tagReview' : 'tagMatch'}`} style={{ marginLeft: 8 }}>
+                          <span className={`tag ${activeSelectedPage.ocrConfidence < OCR_LOW_CONFIDENCE ? 'tagReview' : 'tagMatch'} ocrConfidenceTag`}>
                             ความมั่นใจ OCR {Math.round(activeSelectedPage.ocrConfidence)}%
                           </span>
                         )}
                       </dd>
-                      <dt>ต้นทางจาก PDF</dt><dd style={{ fontWeight: 500 }}>{activeSelectedPage.pdfSource || 'ไม่พบต้นทาง'}</dd>
+                      <dt>ต้นทางจาก PDF</dt><dd className="previewSource">{activeSelectedPage.pdfSource || 'ไม่พบต้นทาง'}</dd>
 
                       <dt>ปลายทางจาก PDF</dt>
                       <dd>
-                        <span className={`tag ${activeSelectedPage.pdfDestination !== 'ไม่พบจังหวัดปลายทาง' ? 'tagMatch' : 'tagMismatch'}`} style={{ fontSize: '12.5px', padding: '4px 10px' }}>
+                        <span className={`tag destinationTag ${activeSelectedPage.pdfDestination !== 'ไม่พบจังหวัดปลายทาง' ? 'tagMatch' : 'tagMismatch'}`}>
                           {activeSelectedPage.pdfDestination || 'ไม่พบปลายทาง'}
                         </span>
                       </dd>
@@ -1451,8 +1419,8 @@ export default function PoChecker() {
           </Card>
         </div>
 
-        <footer className="note" style={{ textAlign: 'center', marginTop: '40px' }}>
-          by Process Management Transport 2026
+        <footer className="note pageFooter">
+          by Process Excellence Team 2026
         </footer>
       </main>
 

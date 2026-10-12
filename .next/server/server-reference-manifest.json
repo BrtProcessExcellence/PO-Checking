@@ -1,0 +1,17 @@
+{
+  "node": {
+    "00c406b8ed5a2a65da4f268776510e6135de2750c0": {
+      "workers": {
+        "app/login/page": {
+          "moduleId": 26277,
+          "async": false,
+          "codeHash": null
+        }
+      },
+      "filename": "app/login/page.jsx",
+      "exportedName": "$$RSC_SERVER_ACTION_0"
+    }
+  },
+  "edge": {},
+  "encryptionKey": "l0y/VOwi9VDuQf/hK6UHnEcqZbI49gIdS4pY+v4bOAc="
+}

@@ -1,8 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title desc">
-  <title id="title">PO Check</title>
-  <desc id="desc">Document with a check mark</desc>
-  <rect width="64" height="64" rx="12" fill="#2B5A66"/>
-  <path d="M18 10h20l10 10v32H18z" fill="#F3F5F1"/>
-  <path d="M38 10v12h12" fill="#D7DED5"/>
-  <path d="m24 38 6 6 12-14" fill="none" stroke="#2F7A4D" stroke-linecap="round" stroke-linejoin="round" stroke-width="5"/>
+<svg width="330" height="407" viewBox="0 0 330 407" fill="none" xmlns="http://www.w3.org/2000/svg">
+<path d="M13 387.851V16C13 14.3431 14.3431 13 16 13H314C315.657 13 317 14.3431 317 16V387.921C317 390.408 314.149 391.815 312.175 390.302L265.369 354.432C264.272 353.592 262.742 353.609 261.665 354.475L214.536 392.363C213.369 393.301 211.689 393.235 210.599 392.208L171.012 354.896C169.875 353.825 168.107 353.805 166.946 354.851L125.282 392.395C124.24 393.333 122.687 393.425 121.542 392.616L67.3208 354.287C66.2399 353.523 64.7859 353.558 63.7426 354.372L17.8465 390.215C15.8768 391.753 13 390.35 13 387.851Z" stroke-width="26" stroke="#E35205"/>
+<path d="M88 87H247.5" stroke-width="26" stroke-linecap="round" stroke="#E35205"/>
+<path d="M88 163.5H243M88 241H170M170 289L213.579 319.316C214.923 320.251 216.768 319.936 217.725 318.609L279.5 233" stroke-width="26" stroke-linecap="round" stroke="#E35205"/>
 </svg>

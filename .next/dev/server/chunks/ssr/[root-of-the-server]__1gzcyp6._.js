@@ -185,6 +185,32 @@ const CUSTOMER_EXCEL_COLUMNS = {
             'รายการ',
             'Description'
         ]
+    },
+    'Big C': {
+        ship: [
+            'Ship-to-Party Name1',
+            'Ship-to Party',
+            'Ship-to-Party City',
+            'ส่งสินค้าที่'
+        ],
+        description: [
+            'Material Description',
+            'Product description',
+            'Item'
+        ]
+    },
+    'Mini Big C': {
+        ship: [
+            'Ship-to Name',
+            'Store Name',
+            'Address ( TH)',
+            'Ship-to'
+        ],
+        description: [
+            'Material Desc.',
+            'Material Description',
+            'Product Group'
+        ]
     }
 };
 function repairExcelText(value) {
@@ -269,7 +295,11 @@ const L = {
     code: loose('รหัส'),
     postal: loose('ไปรษณีย์'),
     itemName: loose('ชื่อสินค้า'),
-    sendTo: loose('ส่งสินค้าไปที่')
+    sendTo: loose('ส่งสินค้าไปที่'),
+    bigcSendTo: '(?:ส\\s*่?\\s*ง\\s*ส\\s*ิ\\s*น\\s*ค\\s*้?\\s*า\\s*ท\\s*ี\\s*่?)',
+    bigcBranch: '\\d{5}\\s+[A-Z0-9]{4,8}\\s*[:：]\\s*\\d{13}',
+    bigcHeadOffice: '1\\s*HEAD\\s*OFFICE\\s*[:：]?\\s*\\d*',
+    bigcVendor: '6003462\\s*[:：]\\s*\\d*'
 };
 const NAMSONG = 'น\\s*(?:ำ|่\\s*า|า)\\s*ส\\s*่?\\s*ง'; // นำส่ง / น่าส่ง
 const FOOTER = `อ้างถึง|หมายเหตุ|Department|${loose('ผู้อนุมัติ')}|P/R|${loose('ผู้ซื้อ')}`;
@@ -356,8 +386,109 @@ const THAI_PROVINCES = [
     'อุดรธานี',
     'อุตรดิตถ์',
     'อุทัยธานี',
-    'อุบลราชธานี'
+    'อุบลราชธานี',
+    'กทม'
 ];
+const PROVINCES_TYPOS = {
+    'กรุงเทพม': 'กรุงเทพมหานคร',
+    'นนทบุร': 'นนทบุรี',
+    'ชลบุร': 'ชลบุรี',
+    'เพชรบุร': 'เพชรบุรี',
+    'ปราจีนบุร': 'ปราจีนบุรี',
+    'ลพบุร': 'ลพบุรี',
+    'สระบุร': 'สระบุรี',
+    'สิงห์บุร': 'สิงห์บุรี',
+    'สุพรรณบุร': 'สุพรรณบุรี',
+    'จันทบุร': 'จันทบุรี',
+    'ราชบุร': 'ราชบุรี',
+    'อยุธยา': 'พระนครศรีอยุธยา',
+    'โคราช': 'นครราชสีมา'
+};
+const PROVINCE_EN_ALIAS = {
+    'NAKORNNAYOK': 'นครนายก',
+    'NAKORN NAYOK': 'นครนายก',
+    'BANGKOK': 'กรุงเทพมหานคร',
+    'BKK': 'กรุงเทพมหานคร',
+    'CHONBURI': 'ชลบุรี',
+    'RAYONG': 'ระยอง',
+    'KHONKAEN': 'ขอนแก่น',
+    'KHON KAEN': 'ขอนแก่น',
+    'SURAT THANI': 'สุราษฎร์ธานี',
+    'SURATTHANI': 'สุราษฎร์ธานี',
+    'CHIANG MAI': 'เชียงใหม่',
+    'CHIANGMAI': 'เชียงใหม่',
+    'AYUTTHAYA': 'พระนครศรีอยุธยา',
+    'KORAT': 'นครราชสีมา',
+    'NAKHON RATCHASIMA': 'นครราชสีมา',
+    'PHUKET': 'ภูเก็ต',
+    'RATCHABURI': 'ราชบุรี',
+    'CHACHOENGSAO': 'ฉะเชิงเทรา',
+    'PATHUM THANI': 'ปทุมธานี',
+    'PATHUMTHANI': 'ปทุมธานี',
+    'SAMUT PRAKAN': 'สมุทรปราการ',
+    'SAMUTPRAKAN': 'สมุทรปราการ',
+    'NONTHABURI': 'นนทบุรี',
+    'NAKHON PATHOM': 'นครปฐม',
+    'SAMUT SAKHON': 'สมุทรสาคร',
+    'SAMUTSAKHON': 'สมุทรสาคร',
+    'SONGKHLA': 'สงขลา',
+    'UDON THANI': 'อุดรธานี',
+    'UDONTHANI': 'อุดรธานี',
+    'BURI RAM': 'บุรีรัมย์',
+    'BURIRAM': 'บุรีรัมย์',
+    'LAMPHUN': 'ลำพูน',
+    'PRACHUAP KHIRI KHAN': 'ประจวบคีรีขันธ์',
+    'PHITSANULOK': 'พิษณุโลก',
+    'KANCHANABURI': 'กาญจนบุรี',
+    'SA KAEO': 'สระแก้ว',
+    'SAKAEO': 'สระแก้ว',
+    'CHUMPHON': 'ชุมพร',
+    'TRAT': 'ตราด',
+    'PHANGNGA': 'พังงา',
+    'PHANG NGA': 'พังงา',
+    'TRANG': 'ตรัง',
+    'SATUN': 'สตูล',
+    'LOPBURI': 'ลพบุรี',
+    'SARABURI': 'สระบุรี',
+    'NONG KHAI': 'หนองคาย',
+    'NONGKHAI': 'หนองคาย',
+    'SI SA KET': 'ศรีสะเกษ',
+    'SISAKET': 'ศรีสะเกษ',
+    'LAMPANG': 'ลำปาง',
+    'KAMPHAENG PHET': 'กำแพงเพชร',
+    'KAMPHAENGPHET': 'กำแพงเพชร',
+    'BUENG KAN': 'บึงกาฬ',
+    'BUENGKAN': 'บึงกาฬ',
+    'MAHA SARAKHAM': 'มหาสารคาม',
+    'MAHASARAKHAM': 'มหาสารคาม',
+    'PHICHIT': 'พิจิตร',
+    'UTTARADIT': 'อุตรดิตถ์',
+    'CHAI NAT': 'ชัยนาท',
+    'CHAINAT': 'ชัยนาท',
+    'PRACHINBURI': 'ปราจีนบุรี',
+    'PRACHIN BURI': 'ปราจีนบุรี',
+    'LOEI': 'เลย',
+    'NONG BUA LAM PHU': 'หนองบัวลำภู',
+    'NONGBUALAMPHU': 'หนองบัวลำภู',
+    'PHAYAO': 'พะเยา',
+    'PHRAE': 'แพร่',
+    'AMNAT CHAROEN': 'อำนาจเจริญ',
+    'YASOTHON': 'ยโสธร',
+    'ROI ET': 'ร้อยเอ็ด',
+    'ROIET': 'ร้อยเอ็ด',
+    'KALASIN': 'กาฬสินธุ์',
+    'MUKDAHAN': 'มุกดาหาร',
+    'SUPHANBURI': 'สุพรรณบุรี',
+    'SAMUT SONGKHRAM': 'สมุทรสงคราม',
+    'NAKHON SI THAMMARAT': 'นครศรีธรรมราช',
+    'NAKHON SAWAN': 'นครสวรรค์',
+    'MAE HONG SON': 'แม่ฮ่องสอน',
+    'NARATHIWAT': 'นราธิวาส',
+    'KRABI': 'กระบี่',
+    'TAK': 'ตาก',
+    'NAN': 'น่าน',
+    'YALA': 'ยะลา'
+};
 const PROVINCE_ALIAS = {
     'กทม': 'กรุงเทพมหานคร',
     'กรุงเทพ': 'กรุงเทพมหานคร',
@@ -371,7 +502,6 @@ const PROVINCE_KEYS = [
 const DEST_NOT_FOUND = 'ไม่พบจังหวัดปลายทาง';
 const SOURCE_NOT_FOUND = 'ไม่พบต้นทาง';
 const ORDER_NUMBER_NOT_FOUND = 'ไม่พบเลขที่';
-// startsWith ทำให้ชื่อที่ถูกตัดท้าย เช่น "กรุงเทพม" ก็ยังจับได้
 function resolveProvince(word) {
     const w = String(word || '').replace(/[ฯ.]/g, '');
     for (const key of PROVINCE_KEYS)if (w.startsWith(key)) return PROVINCE_ALIAS[key] || key;
@@ -411,19 +541,38 @@ function findProvinceInSlice(slice) {
     }
     return null;
 }
-// ทางสำรอง (ไม่มีเลขไปรษณี): จ.xxx -> คำก่อนเลข 5 หลัก -> ชื่อจังหวัดตรงๆ
 function scanProvinceName(t) {
-    for (const m of t.matchAll(/(?:จ\s*\.|จังหวัด)\s*([ก-๙]+)/g)){
-        const p = resolveProvince(m[1]);
-        if (p) return p;
+    if (!t) return '';
+    const found = [];
+    // 3.1 หาจังหวัดภาษาไทยตรงๆ
+    for (const p of THAI_PROVINCES){
+        const idx = t.lastIndexOf(p);
+        if (idx !== -1) found.push({
+            idx,
+            prov: p === 'กทม' ? 'กรุงเทพมหานคร' : p
+        });
     }
-    for (const m of t.matchAll(/([ก-๙]+)\s*\d{5}(?!\d)/g)){
-        const p = resolveProvince(m[1]);
-        if (p) return p;
+    // 3.2 หาคำที่โดนสแกนขาดหายไป (Typos)
+    for (const [typo, actual] of Object.entries(PROVINCES_TYPOS)){
+        const idx = t.lastIndexOf(typo);
+        if (idx !== -1) found.push({
+            idx,
+            prov: actual
+        });
     }
-    for (const key of PROVINCE_KEYS){
-        const hit = key.length <= 4 ? new RegExp(`(?:^|\\s|\\.)${key}(?=\\s|\\d|$)`).test(t) : t.includes(key);
-        if (hit) return PROVINCE_ALIAS[key] || key;
+    // 3.3 หาภาษาอังกฤษ (กรณี Lotus / ภาษาคาราโอเกะ)
+    const tUp = t.toUpperCase();
+    for (const [en, th] of Object.entries(PROVINCE_EN_ALIAS)){
+        const idx = tUp.lastIndexOf(en);
+        if (idx !== -1) found.push({
+            idx,
+            prov: th
+        });
+    }
+    if (found.length > 0) {
+        // เรียงลำดับเอาตัวที่โผล่มาหลังสุด (ท้ายที่อยู่)
+        found.sort((a, b)=>b.idx - a.idx);
+        return found[0].prov;
     }
     return '';
 }
@@ -443,6 +592,25 @@ const RULES_LOTUS_MAKRO = {
         ],
         end: `${L.seq}|Page|${FOOTER}`,
         maxLen: 300
+    }
+};
+const RULES_BIGC = {
+    source: {
+        label: [
+            L.bigcHeadOffice,
+            L.bigcVendor,
+            L.orderer
+        ],
+        end: `${L.seq}|${FOOTER}`,
+        maxLen: 350
+    },
+    dest: {
+        label: [
+            L.bigcBranch,
+            L.bigcSendTo
+        ],
+        end: `${L.bigcHeadOffice}|${L.bigcVendor}|${L.seq}|${FOOTER}`,
+        maxLen: 400
     }
 };
 const PROVINCE_RULES = {
@@ -481,12 +649,14 @@ const PROVINCE_RULES = {
         }
     },
     Makro: RULES_LOTUS_MAKRO,
-    Lotus: RULES_LOTUS_MAKRO
+    Lotus: RULES_LOTUS_MAKRO,
+    'Big C': RULES_BIGC,
+    'Mini Big C': RULES_BIGC
 };
 const LEADING_CODE = /^\d{4,14}\s*/; // รหัสผู้ขาย/สาขา/ร้านที่มาก่อนที่อยู่ (ไม่ใช่รหัสไปรษณีย์)
-function locateProvince(rawText, customer, side) {
+function locateProvince(rawText, customer1, side) {
     const text = normalizePdfText(rawText);
-    const rule = (PROVINCE_RULES[customer] || RULES_LOTUS_MAKRO)[side];
+    const rule = (PROVINCE_RULES[customer1] || RULES_LOTUS_MAKRO)[side];
     const endRx = rule.end ? new RegExp(rule.end, 'i') : null;
     const groups = [];
     for (const label of rule.label || []){
@@ -538,14 +708,251 @@ function cleanOcrNoise(text) {
     text = text.replace(/[ \t]{2,}/g, ' ').trim();
     return text;
 }
+// ฟังก์ชันย่อภาพสแกนโดยล็อกเม็ดสีดำที่ผ่าน OCR แล้วไม่ให้จางหาย
+const buildCrispPreviewDataUrl = (sourceCanvas, targetWidth = 1200)=>{
+    const srcW = sourceCanvas.width;
+    const srcH = sourceCanvas.height;
+    if (!srcW || !srcH) return '';
+    const scale = Math.min(1, targetWidth / srcW);
+    const dstW = Math.max(1, Math.floor(srcW * scale));
+    const dstH = Math.max(1, Math.floor(srcH * scale));
+    const srcCtx = sourceCanvas.getContext('2d');
+    const srcData = srcCtx.getImageData(0, 0, srcW, srcH).data;
+    const dstCanvas = document.createElement('canvas');
+    dstCanvas.width = dstW;
+    dstCanvas.height = dstH;
+    const dstCtx = dstCanvas.getContext('2d');
+    const dstImg = dstCtx.createImageData(dstW, dstH);
+    const dstData = dstImg.data;
+    // เทพื้นหลังสีขาวทั้งหน้า
+    dstData.fill(255);
+    // ถ้าพิกเซลต้นฉบับเป็นสีดำจาก OCR ให้ลงจุดสีดำที่ภาพพรีวิวทันที
+    for(let sy = 0; sy < srcH; sy++){
+        const dy = Math.min(dstH - 1, Math.floor(sy * scale));
+        const srcRowOffset = sy * srcW * 4;
+        const dstRowOffset = dy * dstW * 4;
+        for(let sx = 0; sx < srcW; sx++){
+            const si = srcRowOffset + sx * 4;
+            if (srcData[si + 3] < 10) continue;
+            const gray = srcData[si] * 77 + srcData[si + 1] * 150 + srcData[si + 2] * 29 >> 8;
+            if (gray < 200) {
+                const dx = Math.min(dstW - 1, Math.floor(sx * scale));
+                const di = dstRowOffset + dx * 4;
+                dstData[di] = 0;
+                dstData[di + 1] = 0;
+                dstData[di + 2] = 0;
+                dstData[di + 3] = 255;
+            }
+        }
+    }
+    dstCtx.putImageData(dstImg, 0, 0);
+    return dstCanvas.toDataURL('image/png');
+};
+const processPdf = async ()=>{
+    if (!pdfFiles.length || isProcessing) return;
+    setIsProcessing(true);
+    setStatus({
+        active: true,
+        text: 'กำลังเตรียมระบบ…',
+        current: 0,
+        total: 0
+    });
+    setPageResults([]);
+    setSelectedPage(null);
+    setSelectedPrintPages([]);
+    setResultsPage(1);
+    let tesseractWorker = null;
+    try {
+        const pdfDocs = [];
+        for (const file of pdfFiles){
+            const buf = await file.arrayBuffer();
+            pdfDocs.push(await __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$pdfjs$2d$dist$2f$legacy$2f$build$2f$pdf$2e$mjs__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["getDocument"]({
+                data: buf
+            }).promise);
+        }
+        const total = pdfDocs.reduce((pageCount, pdfDoc)=>pageCount + pdfDoc.numPages, 0);
+        const results = [];
+        let pageNumber = 0;
+        let currentDocumentPO = ORDER_NUMBER_NOT_FOUND;
+        for (const [documentIndex, pdfDoc] of pdfDocs.entries()){
+            currentDocumentPO = ORDER_NUMBER_NOT_FOUND;
+            const poGroups = {};
+            for(let p = 1; p <= pdfDoc.numPages; p++){
+                pageNumber += 1;
+                setStatus({
+                    active: true,
+                    text: `กำลังอ่านข้อความหน้า ${pageNumber} จาก ${total}…`,
+                    current: pageNumber,
+                    total
+                });
+                const page = await pdfDoc.getPage(p);
+                const baseViewport = page.getViewport({
+                    scale: 1.0
+                });
+                const previewScale = Math.min(PREVIEW_SCALE, 1200 / baseViewport.width);
+                const ocrScale = Math.min(OCR_SCALE, 2800 / baseViewport.width);
+                const textContent = await page.getTextContent();
+                let rawText = textContent.items.map((i)=>i.str).join(' ').trim();
+                let source = 'text-layer';
+                let ocrConfidence = null;
+                let thumbDataUrl = '';
+                if (rawText.length < 8) {
+                    // ------ กรณีไฟล์ภาพสแกน (Mini Big C) ------
+                    source = 'ocr';
+                    if (!tesseractWorker) {
+                        setStatus({
+                            active: true,
+                            text: 'กำลังโหลดโมดูล OCR (ครั้งแรกอาจใช้เวลาสักครู่)…',
+                            current: pageNumber,
+                            total
+                        });
+                        tesseractWorker = await __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$tesseract$2e$js$2f$src$2f$index$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["default"].createWorker('tha+eng', 1);
+                        await tesseractWorker.setParameters({
+                            tessedit_pageseg_mode: __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$tesseract$2e$js$2f$src$2f$index$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["default"].PSM.SPARSE_TEXT,
+                            user_defined_dpi: String(Math.round(ocrScale * 72)),
+                            preserve_interword_spaces: '1'
+                        });
+                    }
+                    setStatus({
+                        active: true,
+                        text: `กำลังประมวลผล ${pageNumber} จาก ${total} …`,
+                        current: pageNumber,
+                        total
+                    });
+                    const ocrViewport = page.getViewport({
+                        scale: ocrScale
+                    });
+                    const ocrCanvas = document.createElement('canvas');
+                    ocrCanvas.width = Math.floor(ocrViewport.width);
+                    ocrCanvas.height = Math.floor(ocrViewport.height);
+                    const ctxOcr = ocrCanvas.getContext('2d');
+                    const tempOcrCanvas = document.createElement('canvas');
+                    tempOcrCanvas.width = ocrCanvas.width;
+                    tempOcrCanvas.height = ocrCanvas.height;
+                    await page.render({
+                        canvasContext: tempOcrCanvas.getContext('2d'),
+                        viewport: ocrViewport
+                    }).promise;
+                    ctxOcr.fillStyle = '#ffffff';
+                    ctxOcr.fillRect(0, 0, ocrCanvas.width, ocrCanvas.height);
+                    ctxOcr.drawImage(tempOcrCanvas, 0, 0);
+                    // 1. เร่งเส้นตัวหนังสือให้ดำสนิทบนพื้นขาวก่อน
+                    preprocessForOcr(ocrCanvas);
+                    // 2. ดึงภาพจาก ocrCanvas ที่เร่งสีดำแล้วมาทำรูปพรีวิว
+                    thumbDataUrl = buildCrispPreviewDataUrl(ocrCanvas, 1200);
+                    // 3. ส่งเข้า OCR อ่านข้อความ
+                    const { data } = await tesseractWorker.recognize(ocrCanvas);
+                    rawText = data.text.trim();
+                    ocrConfidence = data.confidence;
+                } else {
+                    // ------ กรณีไฟล์ PDF ปกติ ------
+                    const viewport = page.getViewport({
+                        scale: previewScale
+                    });
+                    const canvas = document.createElement('canvas');
+                    canvas.width = Math.floor(viewport.width);
+                    canvas.height = Math.floor(viewport.height);
+                    const ctxPreview = canvas.getContext('2d');
+                    const tempPreviewCanvas = document.createElement('canvas');
+                    tempPreviewCanvas.width = canvas.width;
+                    tempPreviewCanvas.height = canvas.height;
+                    await page.render({
+                        canvasContext: tempPreviewCanvas.getContext('2d'),
+                        viewport
+                    }).promise;
+                    ctxPreview.fillStyle = '#ffffff';
+                    ctxPreview.fillRect(0, 0, canvas.width, canvas.height);
+                    ctxPreview.drawImage(tempPreviewCanvas, 0, 0);
+                    thumbDataUrl = canvas.toDataURL('image/png');
+                }
+                const addressText = extractPdfAddressText(rawText, customer);
+                const addr = extractAndCorrectAddress(addressText);
+                const formattedAddr = formatAddress(addr);
+                const pdfDestination = extractPdfDestination(rawText, customer, addr, addressText);
+                const pdfSource = extractPdfSource(rawText, customer);
+                let extractedPO = extractPdfOrderNumber(rawText, customer);
+                const keywords = [
+                    'ใบสั่งซื้อ',
+                    'purchase order',
+                    'ผู้สั่งซื้อ',
+                    'กำหนดส่ง',
+                    'สถานที่ส่งของ',
+                    'ผู้จำหน่าย',
+                    'เลขประจำตัวผู้เสียภาษี',
+                    'เงื่อนไขการชำระเงิน',
+                    'วันที่ส่งสินค้า'
+                ];
+                const isNewDoc = keywords.filter((kw)=>normalizePdfText(rawText).includes(kw)).length >= 2;
+                if (extractedPO !== ORDER_NUMBER_NOT_FOUND) {
+                    currentDocumentPO = extractedPO;
+                } else {
+                    if (isNewDoc) {
+                        currentDocumentPO = ORDER_NUMBER_NOT_FOUND;
+                        extractedPO = ORDER_NUMBER_NOT_FOUND;
+                    } else {
+                        extractedPO = currentDocumentPO;
+                    }
+                }
+                const pdfItems = extractPdfItems(rawText, customer);
+                const rowData = {
+                    id: `page-${pageNumber}`,
+                    pages: [
+                        pageNumber
+                    ],
+                    rawText,
+                    source,
+                    ocrConfidence,
+                    addr,
+                    formattedAddr,
+                    pdfAddress: pdfDestination,
+                    pdfDestination,
+                    pdfSource,
+                    pdfOrderNumber: extractedPO,
+                    pdfItems,
+                    codes: pdfItems,
+                    thumbDataUrls: [
+                        thumbDataUrl
+                    ]
+                };
+                (0, __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$pdf$2d$results$2e$mjs__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["addPdfPageResult"])(results, poGroups, rowData, documentIndex, ORDER_NUMBER_NOT_FOUND);
+            }
+        }
+        setPageResults(results);
+        if (results.length > 0) setSelectedPage(results[0]);
+        setPreviewZoom(1);
+    } catch (error) {
+        console.error(error);
+        const message = error instanceof Error ? error.message : String(error);
+        alert(`เกิดข้อผิดพลาดในการประมวลผล PDF: ${message}`);
+    } finally{
+        try {
+            if (tesseractWorker) await tesseractWorker.terminate();
+        } catch (cleanupError) {
+            console.error('ปิดระบบ OCR ไม่สำเร็จ', cleanupError);
+        } finally{
+            setStatus({
+                active: false,
+                text: '',
+                current: 0,
+                total: 0
+            });
+            setIsProcessing(false);
+        }
+    }
+};
 function preprocessForOcr(canvas) {
     const ctx = canvas.getContext('2d');
     const { width, height } = canvas;
     const imageData = ctx.getImageData(0, 0, width, height);
     const d = imageData.data;
     const gray = new Uint8ClampedArray(width * height);
+    // แปลงภาพโปร่งใสให้กลายเป็นพื้นหลังสีขาวก่อน
     for(let i = 0, p = 0; i < d.length; i += 4, p++){
-        gray[p] = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+        const alpha = d[i + 3] / 255; // ค่าความโปร่งใส
+        const r = d[i] * alpha + 255 * (1 - alpha);
+        const g = d[i + 1] * alpha + 255 * (1 - alpha);
+        const b = d[i + 2] * alpha + 255 * (1 - alpha);
+        gray[p] = 0.299 * r + 0.587 * g + 0.114 * b;
     }
     let sumB = 0, wB = 0, maxVar = 0, threshold = 127;
     const hist = new Array(256).fill(0);
@@ -568,6 +975,7 @@ function preprocessForOcr(canvas) {
     for(let i = 0, p = 0; i < d.length; i += 4, p++){
         const v = gray[p] > threshold ? 255 : 0;
         d[i] = d[i + 1] = d[i + 2] = v;
+        d[i + 3] = 255; // บังคับให้ไม่โปร่งใส
     }
     ctx.putImageData(imageData, 0, 0);
     return canvas;
@@ -583,11 +991,11 @@ const ORDER_LABELS = [
     'P\\.?\\s*O\\.?\\s*(?:No\\.?|Number|#)',
     'Order\\s*(?:No\\.?|Number|#)'
 ];
-// ลบ \\s* ออกเพื่อบังคับให้เครื่องหมายโคลอนติดกับคำว่าเลขที่เสมอ
 const LABEL_COLON = loose('เลขที่') + '[:：]';
 const MAKRO_LABEL = loose('เลขที่ใบสั่งซื้อ') + '\\s*[:：]?\\s*(?:' + loose('วันที่') + '.{0,10}' + loose('สินค้า') + '\\s*[:：]?\\s*\\d+\\s*(?:วัน|วั)\\s*)?';
 const CPALL_LABEL = loose('เลขที่') + '\\s*[:：]\\s*(?:' + loose('กำหนดส่ง') + '\\s*[:：]?\\s*\\d+\\s*(?:วัน|วั)\\s*(?:' + loose('ตามเงื่อนไข') + ')?\\s*)?';
 const LOTUS_LABEL = loose('ใบสั่งซื้อสินค้า');
+const BIGC_PO_LABEL = `BIGC\\s*EDI(?:\\s*\\|)?`;
 const ORDER_RULES = {
     'Makro': {
         labels: [
@@ -609,6 +1017,20 @@ const ORDER_RULES = {
             LABEL_COLON
         ],
         relaxed: true
+    },
+    'Big C': {
+        labels: [
+            BIGC_PO_LABEL,
+            loose('เลขที่ใบสั่งซื้อ')
+        ],
+        relaxed: false
+    },
+    'Mini Big C': {
+        labels: [
+            BIGC_PO_LABEL,
+            loose('เลขที่ใบสั่งซื้อ')
+        ],
+        relaxed: false
     }
 };
 const ORDER_PREFIX = '(?:(?:P\\.?\\s*O\\.?|No\\.?|Number|#)\\s*[:：.]?\\s*)?';
@@ -679,10 +1101,10 @@ function extractItemCodes(rawText) {
         ...new Set(found.filter((c)=>!/^\d{5}$/.test(c)))
     ];
 }
-function extractPdfAddressText(rawText, customer) {
-    return stripPhone(locateProvince(rawText, customer, 'dest').snippet);
+function extractPdfAddressText(rawText, customer1) {
+    return stripPhone(locateProvince(rawText, customer1, 'dest').snippet);
 }
-function extractPdfOrderNumber(rawText, customer) {
+function extractPdfOrderNumber(rawText, customer1) {
     const text = normalizePdfText(rawText);
     // ================== [เริ่มส่วน Debug ] ==================
     //   console.log(`\n========== 🔍 กำลังตรวจสอบบิลของห้าง: ${customer} ==========`);
@@ -710,8 +1132,8 @@ function extractPdfOrderNumber(rawText, customer) {
     // }
     // console.log("============================================================\n");
     // ================== [จบส่วน Debug] ==================
-    if (ORDER_RULES[customer]) {
-        const rule = ORDER_RULES[customer];
+    if (ORDER_RULES[customer1]) {
+        const rule = ORDER_RULES[customer1];
         for (const label of rule.labels){
             const regex = new RegExp(`${label}${SEP}${ORDER_PREFIX}${ORDER_TOKEN}`, 'gi');
             for (const m of text.matchAll(regex)){
@@ -742,12 +1164,31 @@ function extractPdfOrderNumber(rawText, customer) {
         const v = cleanOrderToken(m[1]);
         if (v) return v;
     }
-    console.log(`\n🚨 [${customer}] เจอบิลที่หาเลข PO ไม่พบ!`);
+    console.log(`\n🚨 [${customer1}] เจอบิลที่หาเลข PO ไม่พบ!`);
     console.log(`👉 ข้อความ 300 ตัวอักษรแรก: >> "${text.slice(0, 300)}" <<\n`);
     return ORDER_NUMBER_NOT_FOUND;
 }
-function extractPdfDestination(rawText, customer, addr, addressText) {
-    const r = locateProvince(rawText, customer, 'dest');
+function extractPdfDestination(rawText, customer1, addr, addressText) {
+    if (customer1 === 'Big C' || customer1 === 'Mini Big C') {
+        const text = rawText.replace(/\n/g, ' ');
+        // จับรูปแบบ 1: 22275 MSDAN3: ...
+        const bcMatch = text.match(/(\d{5}\s+[A-Z0-9]{4,8}\s*[:：]\s*\d{13}\s*บมจ\..*?(?=\s*(?:โทร|ผู้สั่งซื้อ|เลขประจำตัว|ส่งสินค[้]?าที่|1\s*HEAD)))/i);
+        // จับรูปแบบ 2: บริษัท บิ๊กซีซูเปอร์เซ็นเตอร์ จำกัด (มหาชน) (สาขา MBC บางพลี)...
+        const mbcMatch = text.match(/((?:บริษัท\s*บิ๊กซี|บมจ\.?\s*บิ๊กซี).*?\([^)]+\).*?(?=\s*(?:โทร|ผู้สั่งซื้อ|เลขประจำตัว|1\s*HEAD)))/i);
+        let fullText = null;
+        if (bcMatch) fullText = bcMatch[1];
+        else if (mbcMatch) fullText = mbcMatch[1];
+        else {
+            const fallbackMatch = text.match(/ส่งสินค[้]?าที่\s*(.+?)(?=\s*(?:โทร|ผู้สั่งซื้อ|เลขประจำตัว))/i);
+            if (fallbackMatch) fullText = fallbackMatch[1];
+        }
+        if (fullText) {
+            const prov = scanProvinceName(fullText); // สกัดจังหวัดด้วยฟังก์ชันเดิมที่เขียนไว้
+            if (prov) return prov;
+        }
+        return DEST_NOT_FOUND;
+    }
+    const r = locateProvince(rawText, customer1, 'dest');
     if (r.province) return r.province;
     if (addr && addr.changwat) return addr.changwat;
     return scanProvinceName(normalizePdfText(addressText || '')) || DEST_NOT_FOUND;
@@ -759,8 +1200,17 @@ function normalizeOcrArtifacts(text) {
     }
     return t;
 }
-function extractPdfSource(rawText, customer) {
-    return locateProvince(rawText, customer, 'source').province || SOURCE_NOT_FOUND;
+function extractPdfSource(rawText, customer1) {
+    if (customer1 === 'Big C' || customer1 === 'Mini Big C') {
+        const text = rawText.replace(/\n/g, ' ');
+        const bcMatch = text.match(/(1\s*HEAD\s*OFFICE\s*[:：].*?)(?=\s*(?:โทร|ร้านค[้]?า|6003462))/i);
+        if (bcMatch) {
+            const prov = scanProvinceName(bcMatch[1].replace(/\(สำนักงาน\s*ใหญ่\)/g, '(สำนักงานใหญ่)'));
+            if (prov) return prov;
+        }
+        return SOURCE_NOT_FOUND;
+    }
+    return locateProvince(rawText, customer1, 'source').province || SOURCE_NOT_FOUND;
 }
 function uniqueInOrder(values) {
     return [
@@ -770,10 +1220,10 @@ function uniqueInOrder(values) {
 function extractMakroBranch(rawText) {
     return rawText.match(/\b\d{10,14}\b\s*(สาขา[^\n|]+)/i)?.[1]?.trim() || '';
 }
-function extractPdfItems(rawText, customer) {
+function extractPdfItems(rawText, customer1) {
     const text = normalizePdfText(rawText);
     const results = [];
-    if (customer === 'Lotus') {
+    if (customer1 === 'Lotus') {
         const lotusRegex = /\b\d{8,}_[A-Z0-9_]+_\s*(.+?)\s+\d+(?:\.\d+)?\s+\S+\s+[YNyn]\b/gi;
         for (const match of text.matchAll(lotusRegex)){
             let itemText = match[1].trim();
@@ -786,7 +1236,7 @@ function extractPdfItems(rawText, customer) {
             ];
         }
     }
-    if (customer === 'CP All') {
+    if (customer1 === 'CP All') {
         const cpAllRegex = /(?:^|\s)\d+\s+(\d{7})\s+(\d{13})\s+(.+?)(?=\s+\d+\.\d{2}\s+\d+\s+)/g;
         for (const match of text.matchAll(cpAllRegex)){
             let itemName = match[3].trim();
@@ -799,7 +1249,7 @@ function extractPdfItems(rawText, customer) {
             ];
         }
     }
-    if (customer === 'Makro') {
+    if (customer1 === 'Makro') {
         const makroRegex = /(?:^|\s)\d+\s+(.*?)\s*\(\s*(\d{13})\s*\/[^\)]+\)/g;
         for (const match of text.matchAll(makroRegex)){
             let itemName = match[1].trim();
@@ -813,7 +1263,7 @@ function extractPdfItems(rawText, customer) {
             ...new Set(results)
         ];
     }
-    if (customer === 'CJ Express') {
+    if (customer1 === 'CJ Express') {
         const cjRegex = /(?:^|\s)\d+\s+(\d{13})\s+(\d{13})\s+(.+?)\s+\d+(?:\.\d+)?\s+[A-Za-z]+\/\d+/g;
         for (const match of text.matchAll(cjRegex)){
             let itemName = match[3].trim();
@@ -824,14 +1274,37 @@ function extractPdfItems(rawText, customer) {
             ...new Set(results)
         ];
     }
+    if (customer1 === 'Big C' || customer1 === 'Mini Big C') {
+        const barcodes = [
+            ...text.matchAll(/\b885099\d{7}\b/g)
+        ];
+        const footerRegex = /(?:หมายเหตุ|มูลค่ารวม|ส่วนลด\s*(?:\(บาท\)|\(%\))?|ภาษีมูลค่าเพิ่ม|รวมมูลค่า|ข้อความสำคัญ|ข้อควรระวัง)/i;
+        for(let index = 0; index < barcodes.length; index++){
+            const barcode = barcodes[index];
+            const nextBarcode = barcodes[index + 1];
+            let rowText = text.slice(barcode.index + barcode[0].length, nextBarcode?.index ?? text.length);
+            const footer = footerRegex.exec(rowText);
+            if (footer) rowText = rowText.slice(0, footer.index);
+            rowText = rowText.replace(/^[\s|:：-]+/, '').trim();
+            const thaiVolume = /\d+(?:[.,]\d+)?\s*(?:มล\.?|ลิตร)/i.exec(rowText);
+            const englishVolume = /\d{2,4}\s*ML\b/i.exec(rowText);
+            const firstAmount = /\s+\d{1,3}(?:,\d{3})*\.\d{2,3}\b/.exec(rowText);
+            const endIndex = thaiVolume ? thaiVolume.index + thaiVolume[0].length : englishVolume ? englishVolume.index : firstAmount ? firstAmount.index : rowText.length;
+            const itemName = rowText.slice(0, endIndex).replace(/น้้า/g, 'น้ำ').replace(/น้าดื่ม/g, 'น้ำดื่ม').replace(/([\u0e01-\u0e2e\u0e4c])\u0e4c+/g, '$1').replace(/สิงหน้าดื่ม/g, 'สิงห์น้ำดื่ม').replace(/น้ำดื่ม\s*สิงห์/g, 'สิงห์น้ำดื่ม').replace(/สิงห(?=[พิงค์|เลมอน|ยูซุ|บ๊วย|น้ำ])/g, 'สิงห์').replace(/[|]/g, ' ').replace(/\s+/g, ' ').trim();
+            if (itemName) results.push(itemName);
+        }
+        return [
+            ...new Set(results)
+        ];
+    }
     // ====================================================================
-    const itemLabel = customer === 'CJ Express' ? 'ชื่อสินค้า' : 'รายการ';
+    const itemLabel = customer1 === 'CJ Express' ? 'ชื่อสินค้า' : 'รายการ';
     const itemMatch = rawText.match(new RegExp(`(?:${itemLabel})\\s*[:：-]?\\s*(.+)$`, 'im'));
     const extractedText = itemMatch?.[1]?.trim();
     const codes = extractItemCodes(extractedText || '');
     results.push(...codes);
     if (extractedText) results.push(extractedText);
-    if (customer === 'Makro') {
+    if (customer1 === 'Makro') {
         const branch = extractMakroBranch(rawText);
         if (branch) results.push(branch);
     }
@@ -839,8 +1312,8 @@ function extractPdfItems(rawText, customer) {
         ...new Set(results.filter(Boolean))
     ];
 }
-function getCustomerColumns(customer, headers) {
-    const columnConfig = CUSTOMER_EXCEL_COLUMNS[customer] || CUSTOMER_EXCEL_COLUMNS.Lotus;
+function getCustomerColumns(customer1, headers) {
+    const columnConfig = CUSTOMER_EXCEL_COLUMNS[customer1] || CUSTOMER_EXCEL_COLUMNS.Lotus;
     const safeHeaders = headers || [];
     const normalized = safeHeaders.map(normalizeExcelHeader);
     const findColumn = (patterns, fallback)=>{
@@ -849,7 +1322,7 @@ function getCustomerColumns(customer, headers) {
         const index = normalized.findIndex((header)=>normalizedPatterns.some((pattern)=>header.includes(pattern)));
         return index >= 0 ? index : fallback;
     };
-    switch(customer){
+    switch(customer1){
         case 'CJ Express':
             return {
                 shipIdx: findColumn(columnConfig.ship, 0),
@@ -870,6 +1343,12 @@ function getCustomerColumns(customer, headers) {
                 descIdx: findColumn(columnConfig.description, 1)
             };
         case 'Lotus':
+        case 'Big C':
+        case 'Mini Big C':
+            return {
+                shipIdx: findColumn(columnConfig.ship, 0),
+                descIdx: findColumn(columnConfig.description, 1)
+            };
         default:
             return {
                 shipIdx: findColumn(columnConfig.ship, 0),
@@ -877,9 +1356,9 @@ function getCustomerColumns(customer, headers) {
             };
     }
 }
-function mapExcelRows(rawRows, headers, customer) {
+function mapExcelRows(rawRows, headers, customer1) {
     const safeHeaders = headers || [];
-    const { shipIdx, descIdx } = getCustomerColumns(customer, safeHeaders);
+    const { shipIdx, descIdx } = getCustomerColumns(customer1, safeHeaders);
     const normalizedHeaders = safeHeaders.map(normalizeExcelHeader);
     const findHeaderValue = (row, patterns)=>{
         if (!patterns) return '';
@@ -893,19 +1372,26 @@ function mapExcelRows(rawRows, headers, customer) {
         // อัปเดตกลุ่มคำศัพท์ (Keywords) ให้ครอบคลุมไฟล์ SO, Log, Makro, Lotus, CP All ตามที่ระบุ
         const poNumber = findHeaderValue(row, [
             'ponumber',
-            'purchaseorderno.'
+            'purchaseorderno.',
+            'customerpono.'
         ]);
         const shipTo = findHeaderValue(row, [
             'shiptoparty',
             'shiptopartyname1',
+            'shiptoname',
+            'shipto',
+            'storename',
             'ส่งสินค้าไปที่'
         ]);
         const soldTo = findHeaderValue(row, [
-            'soldtoparty'
+            'soldtoparty',
+            'soldto',
+            'soldtoname'
         ]);
         const productDesc = findHeaderValue(row, [
             'productdescription',
-            'materialdescription'
+            'materialdescription',
+            'materialdesc.'
         ]);
         return {
             // ใช้ค่าเริ่มต้นจาก column mapping หรือถ้าหาไม่เจอให้ดึงจาก dynamic search
@@ -958,7 +1444,7 @@ function CheckboxDropdown({ id, label, options, selected, onChange, disabled, hi
                                 children: label
                             }, void 0, false, {
                                 fileName: "[project]/app/page.jsx",
-                                lineNumber: 656,
+                                lineNumber: 1053,
                                 columnNumber: 11
                             }, this),
                             selected.length > 0 && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
@@ -966,13 +1452,13 @@ function CheckboxDropdown({ id, label, options, selected, onChange, disabled, hi
                                 children: selected.length
                             }, void 0, false, {
                                 fileName: "[project]/app/page.jsx",
-                                lineNumber: 657,
+                                lineNumber: 1054,
                                 columnNumber: 35
                             }, this)
                         ]
                     }, void 0, true, {
                         fileName: "[project]/app/page.jsx",
-                        lineNumber: 655,
+                        lineNumber: 1052,
                         columnNumber: 9
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -983,7 +1469,7 @@ function CheckboxDropdown({ id, label, options, selected, onChange, disabled, hi
                                 children: "ยังไม่มีข้อมูล"
                             }, void 0, false, {
                                 fileName: "[project]/app/page.jsx",
-                                lineNumber: 661,
+                                lineNumber: 1058,
                                 columnNumber: 13
                             }, this) : options.map((option)=>/*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("label", {
                                     className: "filterOption",
@@ -994,20 +1480,20 @@ function CheckboxDropdown({ id, label, options, selected, onChange, disabled, hi
                                             onChange: ()=>toggleOption(option)
                                         }, void 0, false, {
                                             fileName: "[project]/app/page.jsx",
-                                            lineNumber: 664,
+                                            lineNumber: 1061,
                                             columnNumber: 15
                                         }, this),
                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
                                             children: option
                                         }, void 0, false, {
                                             fileName: "[project]/app/page.jsx",
-                                            lineNumber: 665,
+                                            lineNumber: 1062,
                                             columnNumber: 15
                                         }, this)
                                     ]
                                 }, option, true, {
                                     fileName: "[project]/app/page.jsx",
-                                    lineNumber: 663,
+                                    lineNumber: 1060,
                                     columnNumber: 13
                                 }, this)),
                             options.length > 0 && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1021,7 +1507,7 @@ function CheckboxDropdown({ id, label, options, selected, onChange, disabled, hi
                                         children: "เลือกทั้งหมด"
                                     }, void 0, false, {
                                         fileName: "[project]/app/page.jsx",
-                                        lineNumber: 670,
+                                        lineNumber: 1067,
                                         columnNumber: 15
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$components$2f$ui$2f$button$2e$jsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["Button"], {
@@ -1032,25 +1518,25 @@ function CheckboxDropdown({ id, label, options, selected, onChange, disabled, hi
                                         children: "ล้าง"
                                     }, void 0, false, {
                                         fileName: "[project]/app/page.jsx",
-                                        lineNumber: 671,
+                                        lineNumber: 1068,
                                         columnNumber: 15
                                     }, this)
                                 ]
                             }, void 0, true, {
                                 fileName: "[project]/app/page.jsx",
-                                lineNumber: 669,
+                                lineNumber: 1066,
                                 columnNumber: 13
                             }, this)
                         ]
                     }, void 0, true, {
                         fileName: "[project]/app/page.jsx",
-                        lineNumber: 659,
+                        lineNumber: 1056,
                         columnNumber: 9
                     }, this)
                 ]
             }, void 0, true, {
                 fileName: "[project]/app/page.jsx",
-                lineNumber: 654,
+                lineNumber: 1051,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("small", {
@@ -1058,13 +1544,13 @@ function CheckboxDropdown({ id, label, options, selected, onChange, disabled, hi
                 children: hint
             }, void 0, false, {
                 fileName: "[project]/app/page.jsx",
-                lineNumber: 676,
+                lineNumber: 1073,
                 columnNumber: 7
             }, this)
         ]
     }, void 0, true, {
         fileName: "[project]/app/page.jsx",
-        lineNumber: 653,
+        lineNumber: 1050,
         columnNumber: 5
     }, this);
 }
@@ -1095,17 +1581,17 @@ function ColumnFilterDropdown({ options, selected, onChange }) {
                         points: "22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"
                     }, void 0, false, {
                         fileName: "[project]/app/page.jsx",
-                        lineNumber: 692,
+                        lineNumber: 1089,
                         columnNumber: 11
                     }, this)
                 }, void 0, false, {
                     fileName: "[project]/app/page.jsx",
-                    lineNumber: 691,
+                    lineNumber: 1088,
                     columnNumber: 9
                 }, this)
             }, void 0, false, {
                 fileName: "[project]/app/page.jsx",
-                lineNumber: 690,
+                lineNumber: 1087,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1124,7 +1610,7 @@ function ColumnFilterDropdown({ options, selected, onChange }) {
                                 children: "เลือกทั้งหมด"
                             }, void 0, false, {
                                 fileName: "[project]/app/page.jsx",
-                                lineNumber: 697,
+                                lineNumber: 1094,
                                 columnNumber: 11
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
@@ -1134,13 +1620,13 @@ function ColumnFilterDropdown({ options, selected, onChange }) {
                                 children: "ล้าง"
                             }, void 0, false, {
                                 fileName: "[project]/app/page.jsx",
-                                lineNumber: 698,
+                                lineNumber: 1095,
                                 columnNumber: 11
                             }, this)
                         ]
                     }, void 0, true, {
                         fileName: "[project]/app/page.jsx",
-                        lineNumber: 696,
+                        lineNumber: 1093,
                         columnNumber: 9
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1151,7 +1637,7 @@ function ColumnFilterDropdown({ options, selected, onChange }) {
                                 children: "ไม่มีข้อมูล"
                             }, void 0, false, {
                                 fileName: "[project]/app/page.jsx",
-                                lineNumber: 701,
+                                lineNumber: 1098,
                                 columnNumber: 36
                             }, this),
                             options.map((opt, idx)=>/*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("label", {
@@ -1163,7 +1649,7 @@ function ColumnFilterDropdown({ options, selected, onChange }) {
                                             onChange: ()=>toggleOption(opt)
                                         }, void 0, false, {
                                             fileName: "[project]/app/page.jsx",
-                                            lineNumber: 704,
+                                            lineNumber: 1101,
                                             columnNumber: 15
                                         }, this),
                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
@@ -1171,43 +1657,43 @@ function ColumnFilterDropdown({ options, selected, onChange }) {
                                             children: opt || '(ว่าง)'
                                         }, void 0, false, {
                                             fileName: "[project]/app/page.jsx",
-                                            lineNumber: 705,
+                                            lineNumber: 1102,
                                             columnNumber: 15
                                         }, this)
                                     ]
                                 }, idx, true, {
                                     fileName: "[project]/app/page.jsx",
-                                    lineNumber: 703,
+                                    lineNumber: 1100,
                                     columnNumber: 13
                                 }, this))
                         ]
                     }, void 0, true, {
                         fileName: "[project]/app/page.jsx",
-                        lineNumber: 700,
+                        lineNumber: 1097,
                         columnNumber: 9
                     }, this)
                 ]
             }, void 0, true, {
                 fileName: "[project]/app/page.jsx",
-                lineNumber: 695,
+                lineNumber: 1092,
                 columnNumber: 7
             }, this)
         ]
     }, void 0, true, {
         fileName: "[project]/app/page.jsx",
-        lineNumber: 689,
+        lineNumber: 1086,
         columnNumber: 5
     }, this);
 }
 // =========================================================================================
 const RESULTS_PER_PAGE = 10;
 function PoChecker() {
-    const [pdfFiles, setPdfFiles] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])([]);
+    const [pdfFiles1, setPdfFiles] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])([]);
     const [excelSources, setExcelSources] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])([]);
-    const [customer, setCustomer] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])('CP All');
-    const excelRows = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useMemo"])(()=>excelSources.flatMap((source)=>mapExcelRows(source.rawRows, source.headers, customer)), [
+    const [customer1, setCustomer] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])('CP All');
+    const excelRows = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useMemo"])(()=>excelSources.flatMap((source)=>mapExcelRows(source.rawRows, source.headers, customer1)), [
         excelSources,
-        customer
+        customer1
     ]);
     const [selectedSources, setSelectedSources] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])([]);
     const [selectedSites, setSelectedSites] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])([]);
@@ -1219,19 +1705,19 @@ function PoChecker() {
         soldToParty: [],
         productdescription: []
     });
-    const [isProcessing, setIsProcessing] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])(false);
-    const [status, setStatus] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])({
+    const [isProcessing1, setIsProcessing1] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])(false);
+    const [status, setStatus1] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])({
         active: false,
         text: '',
         current: 0,
         total: 0
     });
-    const [pageResults, setPageResults] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])([]);
-    const [selectedPage, setSelectedPage] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])(null);
-    const [previewZoom, setPreviewZoom] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])(1);
-    const [resultsPage, setResultsPage] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])(1);
+    const [pageResults, setPageResults1] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])([]);
+    const [selectedPage, setSelectedPage1] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])(null);
+    const [previewZoom, setPreviewZoom1] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])(1);
+    const [resultsPage, setResultsPage1] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])(1);
     const [printPagesList, setPrintPagesList] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])([]);
-    const [selectedPrintPages, setSelectedPrintPages] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])([]);
+    const [selectedPrintPages, setSelectedPrintPages1] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])([]);
     // --- Drag & Drop States ---
     const [isPdfDragging, setIsPdfDragging] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])(false);
     const [isExcelDragging, setIsExcelDragging] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useState"])(false);
@@ -1244,7 +1730,7 @@ function PoChecker() {
     const handlePdfDrop = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useCallback"])((e)=>{
         e.preventDefault();
         setIsPdfDragging(false);
-        if (isProcessing) return;
+        if (isProcessing1) return;
         const files = [
             ...e.dataTransfer.files
         ].filter((f)=>f.type === 'application/pdf' || /\.pdf$/i.test(f.name));
@@ -1253,7 +1739,7 @@ function PoChecker() {
                 ...files
             ]);
     }, [
-        isProcessing
+        isProcessing1
     ]);
     const handleExcelChange = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useCallback"])(async (e)=>{
         const input = e.target;
@@ -1329,15 +1815,15 @@ function PoChecker() {
         handleExcelChange
     ]);
     const clearPdfFiles = (e)=>{
-        if (isProcessing) return;
+        if (isProcessing1) return;
         e.preventDefault();
         e.stopPropagation();
         setPdfFiles([]);
-        setPageResults([]);
-        setSelectedPage(null);
-        setSelectedPrintPages([]);
+        setPageResults1([]);
+        setSelectedPage1(null);
+        setSelectedPrintPages1([]);
         setPrintPagesList([]);
-        setResultsPage(1);
+        setResultsPage1(1);
     };
     const clearExcelFiles = (e)=>{
         e.preventDefault();
@@ -1357,7 +1843,7 @@ function PoChecker() {
         const files = [
             ...e.target.files
         ];
-        if (!isProcessing && files.length) setPdfFiles((currentFiles)=>[
+        if (!isProcessing1 && files.length) setPdfFiles((currentFiles)=>[
                 ...currentFiles,
                 ...files
             ]);
@@ -1375,33 +1861,34 @@ function PoChecker() {
             soldToParty: [],
             productdescription: []
         });
-        setPageResults([]);
-        setSelectedPage(null);
-        setSelectedPrintPages([]);
+        setPageResults1([]);
+        setSelectedPage1(null);
+        setSelectedPrintPages1([]);
         setPrintPagesList([]);
-        setResultsPage(1);
-        setPreviewZoom(1);
+        setResultsPage1(1);
+        setPreviewZoom1(1);
     };
     const processPdf = async ()=>{
-        if (!pdfFiles.length || isProcessing) return;
-        setIsProcessing(true);
-        setStatus({
+        if (!pdfFiles1.length || isProcessing1) return;
+        setIsProcessing1(true);
+        setStatus1({
             active: true,
             text: 'กำลังเตรียมระบบ…',
             current: 0,
             total: 0
         });
-        setPageResults([]);
-        setSelectedPage(null);
-        setSelectedPrintPages([]);
-        setResultsPage(1);
+        setPageResults1([]);
+        setSelectedPage1(null);
+        setSelectedPrintPages1([]);
+        setResultsPage1(1);
         let tesseractWorker = null;
         try {
             const pdfDocs = [];
-            for (const file of pdfFiles){
+            for (const file of pdfFiles1){
                 const buf = await file.arrayBuffer();
                 pdfDocs.push(await __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$pdfjs$2d$dist$2f$legacy$2f$build$2f$pdf$2e$mjs__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["getDocument"]({
-                    data: buf
+                    data: buf,
+                    wasmUrl: '/pdfjs/wasm/'
                 }).promise);
             }
             const total = pdfDocs.reduce((pageCount, pdfDoc)=>pageCount + pdfDoc.numPages, 0);
@@ -1413,32 +1900,29 @@ function PoChecker() {
                 const poGroups = {};
                 for(let p = 1; p <= pdfDoc.numPages; p++){
                     pageNumber += 1;
-                    setStatus({
+                    setStatus1({
                         active: true,
                         text: `กำลังอ่านข้อความหน้า ${pageNumber} จาก ${total}…`,
                         current: pageNumber,
                         total
                     });
                     const page = await pdfDoc.getPage(p);
-                    const viewport = page.getViewport({
-                        scale: PREVIEW_SCALE
+                    // 🎯 1. คำนวณขนาด (Scale) แบบฉลาด ไม่ให้ Canvas แตกหรือกินแรมจนค้าง
+                    const baseViewport = page.getViewport({
+                        scale: 1.0
                     });
-                    const canvas = document.createElement('canvas');
-                    canvas.width = viewport.width;
-                    canvas.height = viewport.height;
-                    await page.render({
-                        canvasContext: canvas.getContext('2d'),
-                        viewport
-                    }).promise;
-                    const thumbDataUrl = canvas.toDataURL('image/png');
+                    const previewScale = Math.min(PREVIEW_SCALE, 1200 / baseViewport.width);
+                    const ocrScale = Math.min(OCR_SCALE, 2800 / baseViewport.width);
                     const textContent = await page.getTextContent();
                     let rawText = textContent.items.map((i)=>i.str).join(' ').trim();
                     let source = 'text-layer';
                     let ocrConfidence = null;
+                    let thumbDataUrl = '';
                     if (rawText.length < 8) {
+                        // ------ กรณีไฟล์ภาพสแกน (Mini Big C) ------
                         source = 'ocr';
                         if (!tesseractWorker) {
-                            setStatus({
+                            setStatus1({
                                 active: true,
                                 text: 'กำลังโหลดโมดูล OCR (ครั้งแรกอาจใช้เวลาสักครู่)…',
                                 current: pageNumber,
@@ -1447,37 +1931,75 @@ function PoChecker() {
                             tesseractWorker = await __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$tesseract$2e$js$2f$src$2f$index$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["default"].createWorker('tha+eng', 1);
                             await tesseractWorker.setParameters({
                                 tessedit_pageseg_mode: __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$tesseract$2e$js$2f$src$2f$index$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["default"].PSM.SPARSE_TEXT,
-                                user_defined_dpi: String(Math.round(OCR_SCALE * 72)),
+                                user_defined_dpi: String(Math.round(ocrScale * 72)),
                                 preserve_interword_spaces: '1'
                             });
                         }
-                        setStatus({
+                        setStatus1({
                             active: true,
-                            text: `กำลัง OCR หน้า ${pageNumber} จาก ${total} (ความละเอียดสูง)…`,
+                            text: `กำลังประมวลผล ${pageNumber} จาก ${total} …`,
                             current: pageNumber,
                             total
                         });
                         const ocrViewport = page.getViewport({
-                            scale: OCR_SCALE
+                            scale: ocrScale
                         });
                         const ocrCanvas = document.createElement('canvas');
-                        ocrCanvas.width = ocrViewport.width;
-                        ocrCanvas.height = ocrViewport.height;
+                        ocrCanvas.width = Math.floor(ocrViewport.width);
+                        ocrCanvas.height = Math.floor(ocrViewport.height);
+                        const ctxOcr = ocrCanvas.getContext('2d');
+                        const tempOcrCanvas = document.createElement('canvas');
+                        tempOcrCanvas.width = ocrCanvas.width;
+                        tempOcrCanvas.height = ocrCanvas.height;
                         await page.render({
-                            canvasContext: ocrCanvas.getContext('2d'),
+                            canvasContext: tempOcrCanvas.getContext('2d'),
                             viewport: ocrViewport
                         }).promise;
+                        ctxOcr.fillStyle = '#ffffff';
+                        ctxOcr.fillRect(0, 0, ocrCanvas.width, ocrCanvas.height);
+                        ctxOcr.drawImage(tempOcrCanvas, 0, 0);
+                        const previewCanvas = document.createElement('canvas');
+                        const previewScale = Math.min(1, 1200 / tempOcrCanvas.width);
+                        previewCanvas.width = Math.max(1, Math.floor(tempOcrCanvas.width * previewScale));
+                        previewCanvas.height = Math.max(1, Math.floor(tempOcrCanvas.height * previewScale));
+                        const previewContext = previewCanvas.getContext('2d');
+                        previewContext.fillStyle = '#ffffff';
+                        previewContext.fillRect(0, 0, previewCanvas.width, previewCanvas.height);
+                        previewContext.imageSmoothingEnabled = true;
+                        previewContext.imageSmoothingQuality = 'high';
+                        previewContext.drawImage(tempOcrCanvas, 0, 0, previewCanvas.width, previewCanvas.height);
+                        thumbDataUrl = previewCanvas.toDataURL('image/png');
                         preprocessForOcr(ocrCanvas);
                         const { data } = await tesseractWorker.recognize(ocrCanvas);
                         rawText = data.text.trim();
                         ocrConfidence = data.confidence;
+                    } else {
+                        // ------ กรณีไฟล์ PDF ปกติ ------
+                        const viewport = page.getViewport({
+                            scale: previewScale
+                        });
+                        const canvas = document.createElement('canvas');
+                        canvas.width = Math.floor(viewport.width);
+                        canvas.height = Math.floor(viewport.height);
+                        const ctxPreview = canvas.getContext('2d');
+                        const tempPreviewCanvas = document.createElement('canvas');
+                        tempPreviewCanvas.width = canvas.width;
+                        tempPreviewCanvas.height = canvas.height;
+                        await page.render({
+                            canvasContext: tempPreviewCanvas.getContext('2d'),
+                            viewport
+                        }).promise;
+                        ctxPreview.fillStyle = '#ffffff';
+                        ctxPreview.fillRect(0, 0, canvas.width, canvas.height);
+                        ctxPreview.drawImage(tempPreviewCanvas, 0, 0);
+                        thumbDataUrl = canvas.toDataURL('image/png');
                     }
-                    const addressText = extractPdfAddressText(rawText, customer);
+                    const addressText = extractPdfAddressText(rawText, customer1);
                     const addr = extractAndCorrectAddress(addressText);
                     const formattedAddr = formatAddress(addr);
-                    const pdfDestination = extractPdfDestination(rawText, customer, addr, addressText);
-                    const pdfSource = extractPdfSource(rawText, customer);
-                    let extractedPO = extractPdfOrderNumber(rawText, customer);
+                    const pdfDestination = extractPdfDestination(rawText, customer1, addr, addressText);
+                    const pdfSource = extractPdfSource(rawText, customer1);
+                    let extractedPO = extractPdfOrderNumber(rawText, customer1);
                     const keywords = [
                         'ใบสั่งซื้อ',
                         'purchase order',
@@ -1500,7 +2022,7 @@ function PoChecker() {
                             extractedPO = currentDocumentPO;
                         }
                     }
-                    const pdfItems = extractPdfItems(rawText, customer);
+                    const pdfItems = extractPdfItems(rawText, customer1);
                     const rowData = {
                         id: `page-${pageNumber}`,
                         pages: [
@@ -1524,9 +2046,9 @@ function PoChecker() {
                     (0, __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$pdf$2d$results$2e$mjs__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["addPdfPageResult"])(results, poGroups, rowData, documentIndex, ORDER_NUMBER_NOT_FOUND);
                 }
             }
-            setPageResults(results);
-            if (results.length > 0) setSelectedPage(results[0]);
-            setPreviewZoom(1);
+            setPageResults1(results);
+            if (results.length > 0) setSelectedPage1(results[0]);
+            setPreviewZoom1(1);
         } catch (error) {
             console.error(error);
             const message = error instanceof Error ? error.message : String(error);
@@ -1537,13 +2059,13 @@ function PoChecker() {
             } catch (cleanupError) {
                 console.error('ปิดระบบ OCR ไม่สำเร็จ', cleanupError);
             } finally{
-                setStatus({
+                setStatus1({
                     active: false,
                     text: '',
                     current: 0,
                     total: 0
                 });
-                setIsProcessing(false);
+                setIsProcessing1(false);
             }
         }
     };
@@ -1560,7 +2082,7 @@ function PoChecker() {
         setTimeout(()=>window.print(), 100);
     };
     const togglePrintPage = (id)=>{
-        setSelectedPrintPages((ids)=>ids.includes(id) ? ids.filter((value)=>value !== id) : [
+        setSelectedPrintPages1((ids)=>ids.includes(id) ? ids.filter((value)=>value !== id) : [
                 ...ids,
                 id
             ]);
@@ -1568,7 +2090,7 @@ function PoChecker() {
     const toggleFilteredPrintPages = ()=>{
         const filteredIds = filteredResults.map((result)=>result.id);
         const allSelected = filteredIds.length > 0 && filteredIds.every((id)=>selectedPrintPages.includes(id));
-        setSelectedPrintPages((ids)=>allSelected ? ids.filter((id)=>!filteredIds.includes(id)) : [
+        setSelectedPrintPages1((ids)=>allSelected ? ids.filter((id)=>!filteredIds.includes(id)) : [
                 ...new Set([
                     ...ids,
                     ...filteredIds
@@ -1577,7 +2099,8 @@ function PoChecker() {
     };
     const sources = uniqueInOrder(pageResults.map((result)=>result.pdfSource));
     const sites = uniqueInOrder(pageResults.map((result)=>result.pdfDestination));
-    const availableItems = uniqueInOrder(pageResults.flatMap((result)=>result.pdfItems));
+    const getItemsForSites = (selectedSiteValues)=>uniqueInOrder(pageResults.filter((result)=>selectedSiteValues.length === 0 || selectedSiteValues.includes(result.pdfDestination)).flatMap((result)=>result.pdfItems));
+    const availableItems = getItemsForSites(selectedSites);
     const filteredResults = getFilteredResults();
     const totalResultPages = Math.max(1, Math.ceil(filteredResults.length / RESULTS_PER_PAGE));
     const currentResultsPage = Math.min(resultsPage, totalResultPages);
@@ -1587,7 +2110,7 @@ function PoChecker() {
     const selectedPrintResults = pageResults.filter((result)=>selectedPrintPages.includes(result.id));
     const allFilteredPagesSelected = filteredResults.length > 0 && filteredResults.every((result)=>selectedPrintPages.includes(result.id));
     const selectPreviewPage = (index)=>{
-        if (index >= 0 && index < filteredResults.length) setSelectedPage(filteredResults[index]);
+        if (index >= 0 && index < filteredResults.length) setSelectedPage1(filteredResults[index]);
     };
     const paginationControls = filteredResults.length > RESULTS_PER_PAGE ? /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
         className: "pagination paginationCompact",
@@ -1597,11 +2120,11 @@ function PoChecker() {
                 variant: "outline",
                 size: "sm",
                 disabled: currentResultsPage === 1,
-                onClick: ()=>setResultsPage(currentResultsPage - 1),
+                onClick: ()=>setResultsPage1(currentResultsPage - 1),
                 children: "ก่อนหน้า"
             }, void 0, false, {
                 fileName: "[project]/app/page.jsx",
-                lineNumber: 1028,
+                lineNumber: 1474,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
@@ -1614,42 +2137,80 @@ function PoChecker() {
                 ]
             }, void 0, true, {
                 fileName: "[project]/app/page.jsx",
-                lineNumber: 1029,
+                lineNumber: 1475,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$components$2f$ui$2f$button$2e$jsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["Button"], {
                 variant: "outline",
                 size: "sm",
                 disabled: currentResultsPage === totalResultPages,
-                onClick: ()=>setResultsPage(currentResultsPage + 1),
+                onClick: ()=>setResultsPage1(currentResultsPage + 1),
                 children: "ถัดไป"
             }, void 0, false, {
                 fileName: "[project]/app/page.jsx",
-                lineNumber: 1030,
+                lineNumber: 1476,
                 columnNumber: 7
             }, this)
         ]
     }, void 0, true, {
         fileName: "[project]/app/page.jsx",
-        lineNumber: 1027,
+        lineNumber: 1473,
         columnNumber: 5
     }, this) : null;
-    // --- Excel Filter Logic ---
+    // --- Excel Filter Logic แบบเชื่อมโยงกัน (Google Sheets Style) ---
     const handleExcelFilterChange = (column, newSelected)=>{
         setExcelFilters((prev)=>({
                 ...prev,
                 [column]: newSelected
             }));
     };
-    const excelOptions = {
-        ponumber: uniqueInOrder(excelRows.map((r)=>r.ponumber)),
-        shipToParty: uniqueInOrder(excelRows.map((r)=>r.shipToParty)),
-        soldToParty: uniqueInOrder(excelRows.map((r)=>r.soldToParty)),
-        productdescription: uniqueInOrder(excelRows.map((r)=>r.productdescription))
+    // ฟังก์ชันช่วยหาตัวเลือกที่เหลืออยู่ โดยจำลองการกรองจากฟิลเตอร์ "ตัวอื่น"
+    const getAvailableOptions = (columnKey)=>{
+        // ต้องเอารายการที่ "กำลังแสดงอยู่" มาให้เลือก แต่อย่าตัดรายการของตัวเองที่ถูกเลือกไปแล้วทิ้ง
+        const availableRows = excelRows.filter((row)=>{
+            const checkFilter = (key, rowValue)=>key === columnKey || excelFilters[key].length === 0 || excelFilters[key].includes(rowValue);
+            return checkFilter('ponumber', row.ponumber) && checkFilter('shipToParty', row.shipToParty) && checkFilter('soldToParty', row.soldToParty) && checkFilter('productdescription', row.productdescription);
+        });
+        return uniqueInOrder(availableRows.map((r)=>r[columnKey]));
     };
-    const filteredExcelRows = excelRows.filter((row)=>{
-        return (excelFilters.ponumber.length === 0 || excelFilters.ponumber.includes(row.ponumber)) && (excelFilters.shipToParty.length === 0 || excelFilters.shipToParty.includes(row.shipToParty)) && (excelFilters.soldToParty.length === 0 || excelFilters.soldToParty.includes(row.soldToParty)) && (excelFilters.productdescription.length === 0 || excelFilters.productdescription.includes(row.productdescription));
-    });
+    // ดึงรายการตัวเลือกแบบอัปเดตตามสถานะ (Dynamic Options)
+    const excelOptions = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useMemo"])(()=>({
+            ponumber: getAvailableOptions('ponumber'),
+            shipToParty: getAvailableOptions('shipToParty'),
+            soldToParty: getAvailableOptions('soldToParty'),
+            productdescription: getAvailableOptions('productdescription')
+        }), [
+        excelRows,
+        excelFilters
+    ]);
+    const filteredExcelRows = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["useMemo"])(()=>{
+        return excelRows.filter((row)=>{
+            return (excelFilters.ponumber.length === 0 || excelFilters.ponumber.includes(row.ponumber)) && (excelFilters.shipToParty.length === 0 || excelFilters.shipToParty.includes(row.shipToParty)) && (excelFilters.soldToParty.length === 0 || excelFilters.soldToParty.includes(row.soldToParty)) && (excelFilters.productdescription.length === 0 || excelFilters.productdescription.includes(row.productdescription));
+        });
+    }, [
+        excelRows,
+        excelFilters
+    ]);
+    function formatPageRange(pages) {
+        if (!pages || !pages.length) return '';
+        const sorted = [
+            ...new Set(pages)
+        ].sort((a, b)=>a - b);
+        const ranges = [];
+        let start = sorted[0];
+        let end = sorted[0];
+        for(let i = 1; i < sorted.length; i++){
+            if (sorted[i] === end + 1) {
+                end = sorted[i];
+            } else {
+                ranges.push(start === end ? `${start}` : `${start}-${end}`);
+                start = sorted[i];
+                end = sorted[i];
+            }
+        }
+        ranges.push(start === end ? `${start}` : `${start}-${end}`);
+        return ranges.join(', ');
+    }
     return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
         className: "po-container",
         children: [
@@ -1665,12 +2226,12 @@ function PoChecker() {
                                     children: "Transport PO Sorting Tool"
                                 }, void 0, false, {
                                     fileName: "[project]/app/page.jsx",
-                                    lineNumber: 1060,
+                                    lineNumber: 1546,
                                     columnNumber: 13
                                 }, this)
                             }, void 0, false, {
                                 fileName: "[project]/app/page.jsx",
-                                lineNumber: 1059,
+                                lineNumber: 1545,
                                 columnNumber: 11
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("h1", {
@@ -1678,20 +2239,20 @@ function PoChecker() {
                                 children: "ระบบคัดแยกเอกสารใบสั่งซื้อสินค้า"
                             }, void 0, false, {
                                 fileName: "[project]/app/page.jsx",
-                                lineNumber: 1062,
+                                lineNumber: 1548,
                                 columnNumber: 11
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
                                 children: "อัปโหลด PDF ใบสั่งซื้อสินค้า และไฟล์ Excel รายการสินค้า/ที่อยู่ เพื่อดูข้อมูลแยกตามไฟล์"
                             }, void 0, false, {
                                 fileName: "[project]/app/page.jsx",
-                                lineNumber: 1063,
+                                lineNumber: 1549,
                                 columnNumber: 11
                             }, this)
                         ]
                     }, void 0, true, {
                         fileName: "[project]/app/page.jsx",
-                        lineNumber: 1058,
+                        lineNumber: 1544,
                         columnNumber: 9
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("img", {
@@ -1701,13 +2262,13 @@ function PoChecker() {
                         "aria-hidden": "true"
                     }, void 0, false, {
                         fileName: "[project]/app/page.jsx",
-                        lineNumber: 1065,
+                        lineNumber: 1551,
                         columnNumber: 9
                     }, this)
                 ]
             }, void 0, true, {
                 fileName: "[project]/app/page.jsx",
-                lineNumber: 1057,
+                lineNumber: 1543,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("main", {
@@ -1717,15 +2278,15 @@ function PoChecker() {
                         className: "uploads",
                         children: [
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$components$2f$ui$2f$card$2e$jsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["Card"], {
-                                className: `dropzone ${pdfFiles.length ? 'filled' : ''} ${isPdfDragging ? 'dragging' : ''}`,
+                                className: `dropzone ${pdfFiles1.length ? 'filled' : ''} ${isPdfDragging ? 'dragging' : ''}`,
                                 onDragOver: handlePdfDragOver,
                                 onDragLeave: handlePdfDragLeave,
                                 onDrop: handlePdfDrop,
                                 children: [
-                                    pdfFiles.length > 0 && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
+                                    pdfFiles1.length > 0 && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
                                         type: "button",
                                         onClick: clearPdfFiles,
-                                        disabled: isProcessing,
+                                        disabled: isProcessing1,
                                         className: "clearFilesButton",
                                         title: "ล้างไฟล์ PDF",
                                         children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("svg", {
@@ -1745,7 +2306,7 @@ function PoChecker() {
                                                     y2: "18"
                                                 }, void 0, false, {
                                                     fileName: "[project]/app/page.jsx",
-                                                    lineNumber: 1084,
+                                                    lineNumber: 1570,
                                                     columnNumber: 162
                                                 }, this),
                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("line", {
@@ -1755,18 +2316,18 @@ function PoChecker() {
                                                     y2: "18"
                                                 }, void 0, false, {
                                                     fileName: "[project]/app/page.jsx",
-                                                    lineNumber: 1084,
+                                                    lineNumber: 1570,
                                                     columnNumber: 200
                                                 }, this)
                                             ]
                                         }, void 0, true, {
                                             fileName: "[project]/app/page.jsx",
-                                            lineNumber: 1084,
+                                            lineNumber: 1570,
                                             columnNumber: 17
                                         }, this)
                                     }, void 0, false, {
                                         fileName: "[project]/app/page.jsx",
-                                        lineNumber: 1077,
+                                        lineNumber: 1563,
                                         columnNumber: 15
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("label", {
@@ -1788,14 +2349,14 @@ function PoChecker() {
                                                             d: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
                                                         }, void 0, false, {
                                                             fileName: "[project]/app/page.jsx",
-                                                            lineNumber: 1089,
+                                                            lineNumber: 1575,
                                                             columnNumber: 160
                                                         }, this),
                                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("polyline", {
                                                             points: "14 2 14 8 20 8"
                                                         }, void 0, false, {
                                                             fileName: "[project]/app/page.jsx",
-                                                            lineNumber: 1089,
+                                                            lineNumber: 1575,
                                                             columnNumber: 231
                                                         }, this),
                                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("line", {
@@ -1805,7 +2366,7 @@ function PoChecker() {
                                                             y2: "13"
                                                         }, void 0, false, {
                                                             fileName: "[project]/app/page.jsx",
-                                                            lineNumber: 1089,
+                                                            lineNumber: 1575,
                                                             columnNumber: 267
                                                         }, this),
                                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("line", {
@@ -1815,25 +2376,25 @@ function PoChecker() {
                                                             y2: "17"
                                                         }, void 0, false, {
                                                             fileName: "[project]/app/page.jsx",
-                                                            lineNumber: 1089,
+                                                            lineNumber: 1575,
                                                             columnNumber: 306
                                                         }, this),
                                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("polyline", {
                                                             points: "10 9 9 9 8 9"
                                                         }, void 0, false, {
                                                             fileName: "[project]/app/page.jsx",
-                                                            lineNumber: 1089,
+                                                            lineNumber: 1575,
                                                             columnNumber: 345
                                                         }, this)
                                                     ]
                                                 }, void 0, true, {
                                                     fileName: "[project]/app/page.jsx",
-                                                    lineNumber: 1089,
+                                                    lineNumber: 1575,
                                                     columnNumber: 17
                                                 }, this)
                                             }, void 0, false, {
                                                 fileName: "[project]/app/page.jsx",
-                                                lineNumber: 1088,
+                                                lineNumber: 1574,
                                                 columnNumber: 15
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -1844,21 +2405,21 @@ function PoChecker() {
                                                         children: "ไฟล์ PDF ใบสั่งซื้อสินค้า (เลือกได้หลายไฟล์)"
                                                     }, void 0, false, {
                                                         fileName: "[project]/app/page.jsx",
-                                                        lineNumber: 1092,
+                                                        lineNumber: 1578,
                                                         columnNumber: 17
                                                     }, this),
                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
                                                         className: `file ${isPdfDragging ? 'dragging' : ''}`,
-                                                        children: pdfFiles.length ? `${pdfFiles.length} ไฟล์โหลดแล้ว` : 'ลากไฟล์มาวาง หรือ คลิกเพื่อเลือก'
+                                                        children: pdfFiles1.length ? `${pdfFiles1.length} ไฟล์โหลดแล้ว` : 'ลากไฟล์มาวาง หรือ คลิกเพื่อเลือก'
                                                     }, void 0, false, {
                                                         fileName: "[project]/app/page.jsx",
-                                                        lineNumber: 1093,
+                                                        lineNumber: 1579,
                                                         columnNumber: 17
                                                     }, this)
                                                 ]
                                             }, void 0, true, {
                                                 fileName: "[project]/app/page.jsx",
-                                                lineNumber: 1091,
+                                                lineNumber: 1577,
                                                 columnNumber: 15
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
@@ -1867,22 +2428,22 @@ function PoChecker() {
                                                 accept: "application/pdf",
                                                 multiple: true,
                                                 onChange: handlePdfChange,
-                                                disabled: isProcessing
+                                                disabled: isProcessing1
                                             }, void 0, false, {
                                                 fileName: "[project]/app/page.jsx",
-                                                lineNumber: 1095,
+                                                lineNumber: 1581,
                                                 columnNumber: 15
                                             }, this)
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/app/page.jsx",
-                                        lineNumber: 1087,
+                                        lineNumber: 1573,
                                         columnNumber: 13
                                     }, this)
                                 ]
                             }, void 0, true, {
                                 fileName: "[project]/app/page.jsx",
-                                lineNumber: 1070,
+                                lineNumber: 1556,
                                 columnNumber: 11
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$components$2f$ui$2f$card$2e$jsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["Card"], {
@@ -1913,7 +2474,7 @@ function PoChecker() {
                                                     y2: "18"
                                                 }, void 0, false, {
                                                     fileName: "[project]/app/page.jsx",
-                                                    lineNumber: 1112,
+                                                    lineNumber: 1598,
                                                     columnNumber: 162
                                                 }, this),
                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("line", {
@@ -1923,18 +2484,18 @@ function PoChecker() {
                                                     y2: "18"
                                                 }, void 0, false, {
                                                     fileName: "[project]/app/page.jsx",
-                                                    lineNumber: 1112,
+                                                    lineNumber: 1598,
                                                     columnNumber: 200
                                                 }, this)
                                             ]
                                         }, void 0, true, {
                                             fileName: "[project]/app/page.jsx",
-                                            lineNumber: 1112,
+                                            lineNumber: 1598,
                                             columnNumber: 17
                                         }, this)
                                     }, void 0, false, {
                                         fileName: "[project]/app/page.jsx",
-                                        lineNumber: 1106,
+                                        lineNumber: 1592,
                                         columnNumber: 15
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("label", {
@@ -1961,8 +2522,8 @@ function PoChecker() {
                                                             ry: "2"
                                                         }, void 0, false, {
                                                             fileName: "[project]/app/page.jsx",
-                                                            lineNumber: 1117,
-                                                            columnNumber: 161
+                                                            lineNumber: 1603,
+                                                            columnNumber: 160
                                                         }, this),
                                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("line", {
                                                             x1: "3",
@@ -1971,8 +2532,8 @@ function PoChecker() {
                                                             y2: "9"
                                                         }, void 0, false, {
                                                             fileName: "[project]/app/page.jsx",
-                                                            lineNumber: 1117,
-                                                            columnNumber: 218
+                                                            lineNumber: 1603,
+                                                            columnNumber: 217
                                                         }, this),
                                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("line", {
                                                             x1: "9",
@@ -1981,18 +2542,18 @@ function PoChecker() {
                                                             y2: "9"
                                                         }, void 0, false, {
                                                             fileName: "[project]/app/page.jsx",
-                                                            lineNumber: 1117,
-                                                            columnNumber: 255
+                                                            lineNumber: 1603,
+                                                            columnNumber: 254
                                                         }, this)
                                                     ]
                                                 }, void 0, true, {
                                                     fileName: "[project]/app/page.jsx",
-                                                    lineNumber: 1117,
+                                                    lineNumber: 1603,
                                                     columnNumber: 17
                                                 }, this)
                                             }, void 0, false, {
                                                 fileName: "[project]/app/page.jsx",
-                                                lineNumber: 1116,
+                                                lineNumber: 1602,
                                                 columnNumber: 15
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -2003,7 +2564,7 @@ function PoChecker() {
                                                         children: "ไฟล์ Excel (ship / description)"
                                                     }, void 0, false, {
                                                         fileName: "[project]/app/page.jsx",
-                                                        lineNumber: 1120,
+                                                        lineNumber: 1606,
                                                         columnNumber: 17
                                                     }, this),
                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -2011,13 +2572,13 @@ function PoChecker() {
                                                         children: excelSources.length ? `${excelRows.length} แถวจาก ${excelSources.length} ไฟล์โหลดแล้ว` : 'ลากไฟล์มาวาง หรือ คลิกเพื่อเลือก'
                                                     }, void 0, false, {
                                                         fileName: "[project]/app/page.jsx",
-                                                        lineNumber: 1121,
+                                                        lineNumber: 1607,
                                                         columnNumber: 17
                                                     }, this)
                                                 ]
                                             }, void 0, true, {
                                                 fileName: "[project]/app/page.jsx",
-                                                lineNumber: 1119,
+                                                lineNumber: 1605,
                                                 columnNumber: 15
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("input", {
@@ -2028,25 +2589,25 @@ function PoChecker() {
                                                 onChange: handleExcelChange
                                             }, void 0, false, {
                                                 fileName: "[project]/app/page.jsx",
-                                                lineNumber: 1123,
+                                                lineNumber: 1609,
                                                 columnNumber: 15
                                             }, this)
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/app/page.jsx",
-                                        lineNumber: 1115,
+                                        lineNumber: 1601,
                                         columnNumber: 13
                                     }, this)
                                 ]
                             }, void 0, true, {
                                 fileName: "[project]/app/page.jsx",
-                                lineNumber: 1099,
+                                lineNumber: 1585,
                                 columnNumber: 11
                             }, this)
                         ]
                     }, void 0, true, {
                         fileName: "[project]/app/page.jsx",
-                        lineNumber: 1069,
+                        lineNumber: 1555,
                         columnNumber: 9
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$components$2f$ui$2f$card$2e$jsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["Card"], {
@@ -2061,21 +2622,21 @@ function PoChecker() {
                                         children: "Customer"
                                     }, void 0, false, {
                                         fileName: "[project]/app/page.jsx",
-                                        lineNumber: 1130,
+                                        lineNumber: 1616,
                                         columnNumber: 13
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$components$2f$ui$2f$select$2e$jsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["Select"], {
                                         id: "customer-filter",
-                                        value: customer,
+                                        value: customer1,
                                         onChange: handleCustomerChange,
-                                        disabled: isProcessing,
+                                        disabled: isProcessing1,
                                         children: [
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("option", {
                                                 value: "Lotus",
                                                 children: "Lotus"
                                             }, void 0, false, {
                                                 fileName: "[project]/app/page.jsx",
-                                                lineNumber: 1132,
+                                                lineNumber: 1618,
                                                 columnNumber: 15
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("option", {
@@ -2083,7 +2644,7 @@ function PoChecker() {
                                                 children: "CJ Express"
                                             }, void 0, false, {
                                                 fileName: "[project]/app/page.jsx",
-                                                lineNumber: 1133,
+                                                lineNumber: 1619,
                                                 columnNumber: 15
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("option", {
@@ -2091,7 +2652,7 @@ function PoChecker() {
                                                 children: "Makro"
                                             }, void 0, false, {
                                                 fileName: "[project]/app/page.jsx",
-                                                lineNumber: 1134,
+                                                lineNumber: 1620,
                                                 columnNumber: 15
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("option", {
@@ -2099,29 +2660,45 @@ function PoChecker() {
                                                 children: "CP All"
                                             }, void 0, false, {
                                                 fileName: "[project]/app/page.jsx",
-                                                lineNumber: 1135,
+                                                lineNumber: 1621,
+                                                columnNumber: 15
+                                            }, this),
+                                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("option", {
+                                                value: "Big C",
+                                                children: "Big C"
+                                            }, void 0, false, {
+                                                fileName: "[project]/app/page.jsx",
+                                                lineNumber: 1622,
+                                                columnNumber: 15
+                                            }, this),
+                                            /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("option", {
+                                                value: "Mini Big C",
+                                                children: "Mini Big C"
+                                            }, void 0, false, {
+                                                fileName: "[project]/app/page.jsx",
+                                                lineNumber: 1623,
                                                 columnNumber: 15
                                             }, this)
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/app/page.jsx",
-                                        lineNumber: 1131,
+                                        lineNumber: 1617,
                                         columnNumber: 13
                                     }, this)
                                 ]
                             }, void 0, true, {
                                 fileName: "[project]/app/page.jsx",
-                                lineNumber: 1129,
+                                lineNumber: 1615,
                                 columnNumber: 11
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$components$2f$ui$2f$button$2e$jsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["Button"], {
                                 className: "processButton",
                                 onClick: processPdf,
-                                disabled: !pdfFiles.length || isProcessing,
-                                children: isProcessing ? 'กำลังประมวลผล...' : 'ประมวลผล PDF'
+                                disabled: !pdfFiles1.length || isProcessing1,
+                                children: isProcessing1 ? 'กำลังประมวลผล...' : 'ประมวลผล PDF'
                             }, void 0, false, {
                                 fileName: "[project]/app/page.jsx",
-                                lineNumber: 1139,
+                                lineNumber: 1627,
                                 columnNumber: 11
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(CheckboxDropdown, {
@@ -2131,13 +2708,13 @@ function PoChecker() {
                                 selected: selectedSources,
                                 onChange: (values)=>{
                                     setSelectedSources(values);
-                                    setResultsPage(1);
+                                    setResultsPage1(1);
                                 },
                                 disabled: !pageResults.length,
                                 hint: "เรียงตามลำดับที่พบใน PDF"
                             }, void 0, false, {
                                 fileName: "[project]/app/page.jsx",
-                                lineNumber: 1143,
+                                lineNumber: 1631,
                                 columnNumber: 11
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(CheckboxDropdown, {
@@ -2147,13 +2724,15 @@ function PoChecker() {
                                 selected: selectedSites,
                                 onChange: (values)=>{
                                     setSelectedSites(values);
-                                    setResultsPage(1);
+                                    const allowedItems = new Set(getItemsForSites(values));
+                                    setSelectedItems((current)=>current.filter((item)=>allowedItems.has(item)));
+                                    setResultsPage1(1);
                                 },
                                 disabled: !pageResults.length,
                                 hint: "เรียงตามลำดับที่พบใน PDF"
                             }, void 0, false, {
                                 fileName: "[project]/app/page.jsx",
-                                lineNumber: 1153,
+                                lineNumber: 1641,
                                 columnNumber: 11
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(CheckboxDropdown, {
@@ -2163,20 +2742,20 @@ function PoChecker() {
                                 selected: selectedItems,
                                 onChange: (values)=>{
                                     setSelectedItems(values);
-                                    setResultsPage(1);
+                                    setResultsPage1(1);
                                 },
                                 disabled: !pageResults.length,
                                 hint: "เรียงตามลำดับที่พบใน PDF"
                             }, void 0, false, {
                                 fileName: "[project]/app/page.jsx",
-                                lineNumber: 1163,
+                                lineNumber: 1656,
                                 columnNumber: 11
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
                                 className: "spacer"
                             }, void 0, false, {
                                 fileName: "[project]/app/page.jsx",
-                                lineNumber: 1173,
+                                lineNumber: 1666,
                                 columnNumber: 11
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -2184,7 +2763,7 @@ function PoChecker() {
                                 children: pageResults.length === 0 ? 'ยังไม่มีข้อมูล' : selectedSources.length || selectedSites.length || selectedItems.length ? `พบ ${filteredResults.length} จาก ${pageResults.length} หน้า` : `ทั้งหมด ${pageResults.length} หน้า`
                             }, void 0, false, {
                                 fileName: "[project]/app/page.jsx",
-                                lineNumber: 1175,
+                                lineNumber: 1668,
                                 columnNumber: 11
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$components$2f$ui$2f$button$2e$jsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["Button"], {
@@ -2208,14 +2787,14 @@ function PoChecker() {
                                                 points: "6 9 6 2 18 2 18 9"
                                             }, void 0, false, {
                                                 fileName: "[project]/app/page.jsx",
-                                                lineNumber: 1186,
+                                                lineNumber: 1679,
                                                 columnNumber: 179
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("path", {
                                                 d: "M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"
                                             }, void 0, false, {
                                                 fileName: "[project]/app/page.jsx",
-                                                lineNumber: 1186,
+                                                lineNumber: 1679,
                                                 columnNumber: 218
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("rect", {
@@ -2225,13 +2804,13 @@ function PoChecker() {
                                                 height: "8"
                                             }, void 0, false, {
                                                 fileName: "[project]/app/page.jsx",
-                                                lineNumber: 1186,
+                                                lineNumber: 1679,
                                                 columnNumber: 305
                                             }, this)
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/app/page.jsx",
-                                        lineNumber: 1186,
+                                        lineNumber: 1679,
                                         columnNumber: 13
                                     }, this),
                                     "พิมพ์หน้าที่เลือก",
@@ -2239,13 +2818,13 @@ function PoChecker() {
                                 ]
                             }, void 0, true, {
                                 fileName: "[project]/app/page.jsx",
-                                lineNumber: 1180,
+                                lineNumber: 1673,
                                 columnNumber: 11
                             }, this)
                         ]
                     }, void 0, true, {
                         fileName: "[project]/app/page.jsx",
-                        lineNumber: 1128,
+                        lineNumber: 1614,
                         columnNumber: 9
                     }, this),
                     status.active && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -2259,7 +2838,7 @@ function PoChecker() {
                                         children: status.text
                                     }, void 0, false, {
                                         fileName: "[project]/app/page.jsx",
-                                        lineNumber: 1194,
+                                        lineNumber: 1687,
                                         columnNumber: 15
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
@@ -2267,13 +2846,13 @@ function PoChecker() {
                                         children: status.total > 0 ? `${status.current}/${status.total}` : ''
                                     }, void 0, false, {
                                         fileName: "[project]/app/page.jsx",
-                                        lineNumber: 1195,
+                                        lineNumber: 1688,
                                         columnNumber: 15
                                     }, this)
                                 ]
                             }, void 0, true, {
                                 fileName: "[project]/app/page.jsx",
-                                lineNumber: 1193,
+                                lineNumber: 1686,
                                 columnNumber: 13
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -2285,18 +2864,18 @@ function PoChecker() {
                                     "aria-label": "ความคืบหน้าการประมวลผล"
                                 }, void 0, false, {
                                     fileName: "[project]/app/page.jsx",
-                                    lineNumber: 1198,
+                                    lineNumber: 1691,
                                     columnNumber: 15
                                 }, this)
                             }, void 0, false, {
                                 fileName: "[project]/app/page.jsx",
-                                lineNumber: 1197,
+                                lineNumber: 1690,
                                 columnNumber: 13
                             }, this)
                         ]
                     }, void 0, true, {
                         fileName: "[project]/app/page.jsx",
-                        lineNumber: 1192,
+                        lineNumber: 1685,
                         columnNumber: 11
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -2317,13 +2896,13 @@ function PoChecker() {
                                                         children: pageResults.length > 0 ? `(${filteredResults.length} หน้า)` : ''
                                                     }, void 0, false, {
                                                         fileName: "[project]/app/page.jsx",
-                                                        lineNumber: 1207,
+                                                        lineNumber: 1700,
                                                         columnNumber: 37
                                                     }, this)
                                                 ]
                                             }, void 0, true, {
                                                 fileName: "[project]/app/page.jsx",
-                                                lineNumber: 1206,
+                                                lineNumber: 1699,
                                                 columnNumber: 15
                                             }, this),
                                             paginationControls,
@@ -2343,19 +2922,19 @@ function PoChecker() {
                                                                             "aria-label": "เลือกทุกหน้าที่แสดง"
                                                                         }, void 0, false, {
                                                                             fileName: "[project]/app/page.jsx",
-                                                                            lineNumber: 1217,
+                                                                            lineNumber: 1710,
                                                                             columnNumber: 25
                                                                         }, this)
                                                                     }, void 0, false, {
                                                                         fileName: "[project]/app/page.jsx",
-                                                                        lineNumber: 1216,
+                                                                        lineNumber: 1709,
                                                                         columnNumber: 23
                                                                     }, this),
                                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("th", {
                                                                         children: "PO Number"
                                                                     }, void 0, false, {
                                                                         fileName: "[project]/app/page.jsx",
-                                                                        lineNumber: 1224,
+                                                                        lineNumber: 1717,
                                                                         columnNumber: 23
                                                                     }, this),
                                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("th", {
@@ -2363,32 +2942,32 @@ function PoChecker() {
                                                                         children: "เปรียบเทียบกับ Excel"
                                                                     }, void 0, false, {
                                                                         fileName: "[project]/app/page.jsx",
-                                                                        lineNumber: 1225,
+                                                                        lineNumber: 1718,
                                                                         columnNumber: 23
                                                                     }, this),
                                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("th", {
                                                                         children: "ต้นทางจาก PDF"
                                                                     }, void 0, false, {
                                                                         fileName: "[project]/app/page.jsx",
-                                                                        lineNumber: 1226,
+                                                                        lineNumber: 1719,
                                                                         columnNumber: 23
                                                                     }, this),
                                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("th", {
                                                                         children: "ปลายทางจาก PDF"
                                                                     }, void 0, false, {
                                                                         fileName: "[project]/app/page.jsx",
-                                                                        lineNumber: 1227,
+                                                                        lineNumber: 1720,
                                                                         columnNumber: 23
                                                                     }, this)
                                                                 ]
                                                             }, void 0, true, {
                                                                 fileName: "[project]/app/page.jsx",
-                                                                lineNumber: 1215,
+                                                                lineNumber: 1708,
                                                                 columnNumber: 21
                                                             }, this)
                                                         }, void 0, false, {
                                                             fileName: "[project]/app/page.jsx",
-                                                            lineNumber: 1214,
+                                                            lineNumber: 1707,
                                                             columnNumber: 19
                                                         }, this),
                                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("tbody", {
@@ -2399,12 +2978,12 @@ function PoChecker() {
                                                                     children: "อัปโหลดไฟล์แล้วกด “ประมวลผล PDF”"
                                                                 }, void 0, false, {
                                                                     fileName: "[project]/app/page.jsx",
-                                                                    lineNumber: 1232,
+                                                                    lineNumber: 1725,
                                                                     columnNumber: 27
                                                                 }, this)
                                                             }, void 0, false, {
                                                                 fileName: "[project]/app/page.jsx",
-                                                                lineNumber: 1232,
+                                                                lineNumber: 1725,
                                                                 columnNumber: 23
                                                             }, this) : filteredResults.length === 0 ? /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("tr", {
                                                                 children: /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("td", {
@@ -2413,12 +2992,12 @@ function PoChecker() {
                                                                     children: "ไม่พบหน้าที่ตรงกับตัวกรองนี้"
                                                                 }, void 0, false, {
                                                                     fileName: "[project]/app/page.jsx",
-                                                                    lineNumber: 1234,
+                                                                    lineNumber: 1727,
                                                                     columnNumber: 27
                                                                 }, this)
                                                             }, void 0, false, {
                                                                 fileName: "[project]/app/page.jsx",
-                                                                lineNumber: 1234,
+                                                                lineNumber: 1727,
                                                                 columnNumber: 23
                                                             }, this) : visibleResults.map((r, idx)=>{
                                                                 const isSelected = selectedPage?.id === r.id;
@@ -2428,7 +3007,7 @@ function PoChecker() {
                                                                 const matchInExcel = hasPo && excelRows.some((row)=>row.ponumber && row.ponumber.toString().trim() === r.pdfOrderNumber.toString().trim());
                                                                 return /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("tr", {
                                                                     className: isSelected ? 'selected' : '',
-                                                                    onClick: ()=>setSelectedPage(r),
+                                                                    onClick: ()=>setSelectedPage1(r),
                                                                     children: [
                                                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("td", {
                                                                             className: "pageSelectCell",
@@ -2440,25 +3019,25 @@ function PoChecker() {
                                                                                     "aria-label": `เลือก PO ${r.pdfOrderNumber} สำหรับพิมพ์`
                                                                                 }, void 0, false, {
                                                                                     fileName: "[project]/app/page.jsx",
-                                                                                    lineNumber: 1253,
+                                                                                    lineNumber: 1746,
                                                                                     columnNumber: 31
                                                                                 }, this),
                                                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
                                                                                     className: "mono pageNumber",
                                                                                     children: [
                                                                                         "หน้า ",
-                                                                                        r.pages.join(', ')
+                                                                                        formatPageRange(r.pages)
                                                                                     ]
                                                                                 }, void 0, true, {
                                                                                     fileName: "[project]/app/page.jsx",
-                                                                                    lineNumber: 1259,
+                                                                                    lineNumber: 1752,
                                                                                     columnNumber: 31
                                                                                 }, this),
-                                                                                "                            "
+                                                                                "                         "
                                                                             ]
                                                                         }, void 0, true, {
                                                                             fileName: "[project]/app/page.jsx",
-                                                                            lineNumber: 1252,
+                                                                            lineNumber: 1745,
                                                                             columnNumber: 29
                                                                         }, this),
                                                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("td", {
@@ -2466,7 +3045,7 @@ function PoChecker() {
                                                                             children: r.pdfOrderNumber || ORDER_NUMBER_NOT_FOUND
                                                                         }, void 0, false, {
                                                                             fileName: "[project]/app/page.jsx",
-                                                                            lineNumber: 1262,
+                                                                            lineNumber: 1755,
                                                                             columnNumber: 29
                                                                         }, this),
                                                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("td", {
@@ -2476,26 +3055,26 @@ function PoChecker() {
                                                                                 children: "เฉพาะ PDF"
                                                                             }, void 0, false, {
                                                                                 fileName: "[project]/app/page.jsx",
-                                                                                lineNumber: 1268,
+                                                                                lineNumber: 1761,
                                                                                 columnNumber: 37
                                                                             }, this) : matchInExcel ? /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
                                                                                 className: "comparisonBadge comparisonBadgeMatch",
                                                                                 children: "✅ ตรงกัน"
                                                                             }, void 0, false, {
                                                                                 fileName: "[project]/app/page.jsx",
-                                                                                lineNumber: 1270,
+                                                                                lineNumber: 1763,
                                                                                 columnNumber: 39
                                                                             }, this) : /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
                                                                                 className: "comparisonBadge comparisonBadgeMissing",
                                                                                 children: "❌ ไม่พบ"
                                                                             }, void 0, false, {
                                                                                 fileName: "[project]/app/page.jsx",
-                                                                                lineNumber: 1271,
+                                                                                lineNumber: 1764,
                                                                                 columnNumber: 39
                                                                             }, this) : '-'
                                                                         }, void 0, false, {
                                                                             fileName: "[project]/app/page.jsx",
-                                                                            lineNumber: 1265,
+                                                                            lineNumber: 1758,
                                                                             columnNumber: 29
                                                                         }, this),
                                                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("td", {
@@ -2503,7 +3082,7 @@ function PoChecker() {
                                                                             children: r.pdfSource || 'ไม่พบต้นทาง'
                                                                         }, void 0, false, {
                                                                             fileName: "[project]/app/page.jsx",
-                                                                            lineNumber: 1274,
+                                                                            lineNumber: 1767,
                                                                             columnNumber: 29
                                                                         }, this),
                                                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("td", {
@@ -2525,7 +3104,7 @@ function PoChecker() {
                                                                                                 d: "M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"
                                                                                             }, void 0, false, {
                                                                                                 fileName: "[project]/app/page.jsx",
-                                                                                                lineNumber: 1278,
+                                                                                                lineNumber: 1771,
                                                                                                 columnNumber: 177
                                                                                             }, this),
                                                                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("circle", {
@@ -2534,62 +3113,62 @@ function PoChecker() {
                                                                                                 r: "3"
                                                                                             }, void 0, false, {
                                                                                                 fileName: "[project]/app/page.jsx",
-                                                                                                lineNumber: 1278,
+                                                                                                lineNumber: 1771,
                                                                                                 columnNumber: 236
                                                                                             }, this)
                                                                                         ]
                                                                                     }, void 0, true, {
                                                                                         fileName: "[project]/app/page.jsx",
-                                                                                        lineNumber: 1278,
+                                                                                        lineNumber: 1771,
                                                                                         columnNumber: 35
                                                                                     }, this),
                                                                                     r.pdfDestination
                                                                                 ]
                                                                             }, void 0, true, {
                                                                                 fileName: "[project]/app/page.jsx",
-                                                                                lineNumber: 1277,
+                                                                                lineNumber: 1770,
                                                                                 columnNumber: 33
                                                                             }, this) : /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
                                                                                 className: "destinationMissing",
                                                                                 children: r.pdfDestination
                                                                             }, void 0, false, {
                                                                                 fileName: "[project]/app/page.jsx",
-                                                                                lineNumber: 1282,
+                                                                                lineNumber: 1775,
                                                                                 columnNumber: 33
                                                                             }, this)
                                                                         }, void 0, false, {
                                                                             fileName: "[project]/app/page.jsx",
-                                                                            lineNumber: 1275,
+                                                                            lineNumber: 1768,
                                                                             columnNumber: 29
                                                                         }, this)
                                                                     ]
                                                                 }, r.id || idx, true, {
                                                                     fileName: "[project]/app/page.jsx",
-                                                                    lineNumber: 1247,
+                                                                    lineNumber: 1740,
                                                                     columnNumber: 27
                                                                 }, this);
                                                             })
                                                         }, void 0, false, {
                                                             fileName: "[project]/app/page.jsx",
-                                                            lineNumber: 1230,
+                                                            lineNumber: 1723,
                                                             columnNumber: 19
                                                         }, this)
                                                     ]
                                                 }, void 0, true, {
                                                     fileName: "[project]/app/page.jsx",
-                                                    lineNumber: 1213,
+                                                    lineNumber: 1706,
                                                     columnNumber: 17
                                                 }, this)
                                             }, void 0, false, {
                                                 fileName: "[project]/app/page.jsx",
-                                                lineNumber: 1212,
+                                                lineNumber: 1705,
                                                 columnNumber: 15
                                             }, this),
                                             paginationControls
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/app/page.jsx",
-                                        lineNumber: 1205,
+                                        lineNumber: 1698,
                                         columnNumber: 13
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$components$2f$ui$2f$card$2e$jsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["Card"], {
@@ -2604,13 +3183,13 @@ function PoChecker() {
                                                         children: filteredExcelRows.length > 0 ? `(${filteredExcelRows.length} แถว)` : ''
                                                     }, void 0, false, {
                                                         fileName: "[project]/app/page.jsx",
-                                                        lineNumber: 1297,
+                                                        lineNumber: 1790,
                                                         columnNumber: 33
                                                     }, this)
                                                 ]
                                             }, void 0, true, {
                                                 fileName: "[project]/app/page.jsx",
-                                                lineNumber: 1296,
+                                                lineNumber: 1789,
                                                 columnNumber: 15
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -2631,18 +3210,18 @@ function PoChecker() {
                                                                                     onChange: (val)=>handleExcelFilterChange('ponumber', val)
                                                                                 }, void 0, false, {
                                                                                     fileName: "[project]/app/page.jsx",
-                                                                                    lineNumber: 1306,
+                                                                                    lineNumber: 1799,
                                                                                     columnNumber: 27
                                                                                 }, this)
                                                                             ]
                                                                         }, void 0, true, {
                                                                             fileName: "[project]/app/page.jsx",
-                                                                            lineNumber: 1304,
+                                                                            lineNumber: 1797,
                                                                             columnNumber: 25
                                                                         }, this)
                                                                     }, void 0, false, {
                                                                         fileName: "[project]/app/page.jsx",
-                                                                        lineNumber: 1303,
+                                                                        lineNumber: 1796,
                                                                         columnNumber: 23
                                                                     }, this),
                                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("th", {
@@ -2656,18 +3235,18 @@ function PoChecker() {
                                                                                     onChange: (val)=>handleExcelFilterChange('shipToParty', val)
                                                                                 }, void 0, false, {
                                                                                     fileName: "[project]/app/page.jsx",
-                                                                                    lineNumber: 1312,
+                                                                                    lineNumber: 1805,
                                                                                     columnNumber: 27
                                                                                 }, this)
                                                                             ]
                                                                         }, void 0, true, {
                                                                             fileName: "[project]/app/page.jsx",
-                                                                            lineNumber: 1310,
+                                                                            lineNumber: 1803,
                                                                             columnNumber: 25
                                                                         }, this)
                                                                     }, void 0, false, {
                                                                         fileName: "[project]/app/page.jsx",
-                                                                        lineNumber: 1309,
+                                                                        lineNumber: 1802,
                                                                         columnNumber: 23
                                                                     }, this),
                                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("th", {
@@ -2681,18 +3260,18 @@ function PoChecker() {
                                                                                     onChange: (val)=>handleExcelFilterChange('soldToParty', val)
                                                                                 }, void 0, false, {
                                                                                     fileName: "[project]/app/page.jsx",
-                                                                                    lineNumber: 1318,
+                                                                                    lineNumber: 1811,
                                                                                     columnNumber: 27
                                                                                 }, this)
                                                                             ]
                                                                         }, void 0, true, {
                                                                             fileName: "[project]/app/page.jsx",
-                                                                            lineNumber: 1316,
+                                                                            lineNumber: 1809,
                                                                             columnNumber: 25
                                                                         }, this)
                                                                     }, void 0, false, {
                                                                         fileName: "[project]/app/page.jsx",
-                                                                        lineNumber: 1315,
+                                                                        lineNumber: 1808,
                                                                         columnNumber: 23
                                                                     }, this),
                                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("th", {
@@ -2706,29 +3285,29 @@ function PoChecker() {
                                                                                     onChange: (val)=>handleExcelFilterChange('productdescription', val)
                                                                                 }, void 0, false, {
                                                                                     fileName: "[project]/app/page.jsx",
-                                                                                    lineNumber: 1324,
+                                                                                    lineNumber: 1817,
                                                                                     columnNumber: 27
                                                                                 }, this)
                                                                             ]
                                                                         }, void 0, true, {
                                                                             fileName: "[project]/app/page.jsx",
-                                                                            lineNumber: 1322,
+                                                                            lineNumber: 1815,
                                                                             columnNumber: 25
                                                                         }, this)
                                                                     }, void 0, false, {
                                                                         fileName: "[project]/app/page.jsx",
-                                                                        lineNumber: 1321,
+                                                                        lineNumber: 1814,
                                                                         columnNumber: 23
                                                                     }, this)
                                                                 ]
                                                             }, void 0, true, {
                                                                 fileName: "[project]/app/page.jsx",
-                                                                lineNumber: 1302,
+                                                                lineNumber: 1795,
                                                                 columnNumber: 21
                                                             }, this)
                                                         }, void 0, false, {
                                                             fileName: "[project]/app/page.jsx",
-                                                            lineNumber: 1301,
+                                                            lineNumber: 1794,
                                                             columnNumber: 19
                                                         }, this),
                                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("tbody", {
@@ -2739,12 +3318,12 @@ function PoChecker() {
                                                                     children: excelRows.length > 0 ? 'ไม่พบข้อมูลที่ตรงกับตัวกรอง' : 'อัปโหลดไฟล์ Excel เพื่อแสดงข้อมูล'
                                                                 }, void 0, false, {
                                                                     fileName: "[project]/app/page.jsx",
-                                                                    lineNumber: 1331,
+                                                                    lineNumber: 1824,
                                                                     columnNumber: 27
                                                                 }, this)
                                                             }, void 0, false, {
                                                                 fileName: "[project]/app/page.jsx",
-                                                                lineNumber: 1331,
+                                                                lineNumber: 1824,
                                                                 columnNumber: 23
                                                             }, this) : filteredExcelRows.map((row, index)=>/*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("tr", {
                                                                     children: [
@@ -2753,62 +3332,62 @@ function PoChecker() {
                                                                             children: row.ponumber || '—'
                                                                         }, void 0, false, {
                                                                             fileName: "[project]/app/page.jsx",
-                                                                            lineNumber: 1335,
+                                                                            lineNumber: 1828,
                                                                             columnNumber: 27
                                                                         }, this),
                                                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("td", {
                                                                             children: row.shipToParty || '—'
                                                                         }, void 0, false, {
                                                                             fileName: "[project]/app/page.jsx",
-                                                                            lineNumber: 1336,
+                                                                            lineNumber: 1829,
                                                                             columnNumber: 27
                                                                         }, this),
                                                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("td", {
                                                                             children: row.soldToParty || '—'
                                                                         }, void 0, false, {
                                                                             fileName: "[project]/app/page.jsx",
-                                                                            lineNumber: 1337,
+                                                                            lineNumber: 1830,
                                                                             columnNumber: 27
                                                                         }, this),
                                                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("td", {
                                                                             children: row.productdescription || '—'
                                                                         }, void 0, false, {
                                                                             fileName: "[project]/app/page.jsx",
-                                                                            lineNumber: 1338,
+                                                                            lineNumber: 1831,
                                                                             columnNumber: 27
                                                                         }, this)
                                                                     ]
                                                                 }, `${row.source}-${index}`, true, {
                                                                     fileName: "[project]/app/page.jsx",
-                                                                    lineNumber: 1334,
+                                                                    lineNumber: 1827,
                                                                     columnNumber: 25
                                                                 }, this))
                                                         }, void 0, false, {
                                                             fileName: "[project]/app/page.jsx",
-                                                            lineNumber: 1329,
+                                                            lineNumber: 1822,
                                                             columnNumber: 19
                                                         }, this)
                                                     ]
                                                 }, void 0, true, {
                                                     fileName: "[project]/app/page.jsx",
-                                                    lineNumber: 1300,
+                                                    lineNumber: 1793,
                                                     columnNumber: 17
                                                 }, this)
                                             }, void 0, false, {
                                                 fileName: "[project]/app/page.jsx",
-                                                lineNumber: 1299,
+                                                lineNumber: 1792,
                                                 columnNumber: 15
                                             }, this)
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/app/page.jsx",
-                                        lineNumber: 1295,
+                                        lineNumber: 1788,
                                         columnNumber: 13
                                     }, this)
                                 ]
                             }, void 0, true, {
                                 fileName: "[project]/app/page.jsx",
-                                lineNumber: 1204,
+                                lineNumber: 1697,
                                 columnNumber: 11
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$components$2f$ui$2f$card$2e$jsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["Card"], {
@@ -2819,7 +3398,7 @@ function PoChecker() {
                                         children: "ตัวอย่างหน้าเอกสาร"
                                     }, void 0, false, {
                                         fileName: "[project]/app/page.jsx",
-                                        lineNumber: 1349,
+                                        lineNumber: 1842,
                                         columnNumber: 13
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -2838,7 +3417,7 @@ function PoChecker() {
                                                         children: "‹"
                                                     }, void 0, false, {
                                                         fileName: "[project]/app/page.jsx",
-                                                        lineNumber: 1352,
+                                                        lineNumber: 1845,
                                                         columnNumber: 17
                                                     }, this),
                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$components$2f$ui$2f$select$2e$jsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["Select"], {
@@ -2852,21 +3431,21 @@ function PoChecker() {
                                                                 children: "ยังไม่มีหน้า"
                                                             }, void 0, false, {
                                                                 fileName: "[project]/app/page.jsx",
-                                                                lineNumber: 1359,
+                                                                lineNumber: 1852,
                                                                 columnNumber: 47
                                                             }, this),
                                                             filteredResults.map((result)=>/*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("option", {
                                                                     value: result.id,
-                                                                    children: result.pdfOrderNumber !== ORDER_NUMBER_NOT_FOUND ? `PO: ${result.pdfOrderNumber} (หน้า ${result.pages.join(', ')})` : `หน้า ${result.pages[0]}`
+                                                                    children: result.pdfOrderNumber !== ORDER_NUMBER_NOT_FOUND ? `PO: ${result.pdfOrderNumber} (หน้า ${formatPageRange(result.pages)})` : `หน้า ${formatPageRange(result.pages)}`
                                                                 }, result.id, false, {
                                                                     fileName: "[project]/app/page.jsx",
-                                                                    lineNumber: 1361,
+                                                                    lineNumber: 1854,
                                                                     columnNumber: 21
                                                                 }, this))
                                                         ]
                                                     }, void 0, true, {
                                                         fileName: "[project]/app/page.jsx",
-                                                        lineNumber: 1353,
+                                                        lineNumber: 1846,
                                                         columnNumber: 17
                                                     }, this),
                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$components$2f$ui$2f$button$2e$jsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["Button"], {
@@ -2878,26 +3457,26 @@ function PoChecker() {
                                                         children: "›"
                                                     }, void 0, false, {
                                                         fileName: "[project]/app/page.jsx",
-                                                        lineNumber: 1368,
+                                                        lineNumber: 1861,
                                                         columnNumber: 17
                                                     }, this),
                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
                                                         className: "previewDivider"
                                                     }, void 0, false, {
                                                         fileName: "[project]/app/page.jsx",
-                                                        lineNumber: 1369,
+                                                        lineNumber: 1862,
                                                         columnNumber: 17
                                                     }, this),
                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$components$2f$ui$2f$button$2e$jsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["Button"], {
                                                         variant: "outline",
                                                         size: "icon",
                                                         disabled: !activeSelectedPage || previewZoom <= 0.5,
-                                                        onClick: ()=>setPreviewZoom((value)=>Math.max(0.5, value - 0.25)),
+                                                        onClick: ()=>setPreviewZoom1((value)=>Math.max(0.5, value - 0.25)),
                                                         "aria-label": "ซูมออก",
                                                         children: "−"
                                                     }, void 0, false, {
                                                         fileName: "[project]/app/page.jsx",
-                                                        lineNumber: 1371,
+                                                        lineNumber: 1864,
                                                         columnNumber: 17
                                                     }, this),
                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
@@ -2908,36 +3487,36 @@ function PoChecker() {
                                                         ]
                                                     }, void 0, true, {
                                                         fileName: "[project]/app/page.jsx",
-                                                        lineNumber: 1372,
+                                                        lineNumber: 1865,
                                                         columnNumber: 17
                                                     }, this),
                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$components$2f$ui$2f$button$2e$jsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["Button"], {
                                                         variant: "outline",
                                                         size: "icon",
                                                         disabled: !activeSelectedPage || previewZoom >= 2,
-                                                        onClick: ()=>setPreviewZoom((value)=>Math.min(2, value + 0.25)),
+                                                        onClick: ()=>setPreviewZoom1((value)=>Math.min(2, value + 0.25)),
                                                         "aria-label": "ซูมเข้า",
                                                         children: "+"
                                                     }, void 0, false, {
                                                         fileName: "[project]/app/page.jsx",
-                                                        lineNumber: 1373,
+                                                        lineNumber: 1866,
                                                         columnNumber: 17
                                                     }, this),
                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$components$2f$ui$2f$button$2e$jsx__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["Button"], {
                                                         variant: "ghost",
                                                         size: "sm",
                                                         disabled: !activeSelectedPage || previewZoom === 1,
-                                                        onClick: ()=>setPreviewZoom(1),
+                                                        onClick: ()=>setPreviewZoom1(1),
                                                         children: "รีเซ็ต"
                                                     }, void 0, false, {
                                                         fileName: "[project]/app/page.jsx",
-                                                        lineNumber: 1374,
+                                                        lineNumber: 1867,
                                                         columnNumber: 17
                                                     }, this)
                                                 ]
                                             }, void 0, true, {
                                                 fileName: "[project]/app/page.jsx",
-                                                lineNumber: 1351,
+                                                lineNumber: 1844,
                                                 columnNumber: 15
                                             }, this),
                                             !activeSelectedPage ? /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -2961,7 +3540,7 @@ function PoChecker() {
                                                                 ry: "2"
                                                             }, void 0, false, {
                                                                 fileName: "[project]/app/page.jsx",
-                                                                lineNumber: 1378,
+                                                                lineNumber: 1871,
                                                                 columnNumber: 147
                                                             }, this),
                                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("circle", {
@@ -2970,38 +3549,38 @@ function PoChecker() {
                                                                 r: "1.5"
                                                             }, void 0, false, {
                                                                 fileName: "[project]/app/page.jsx",
-                                                                lineNumber: 1378,
+                                                                lineNumber: 1871,
                                                                 columnNumber: 204
                                                             }, this),
                                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("polyline", {
                                                                 points: "21 15 16 10 5 21"
                                                             }, void 0, false, {
                                                                 fileName: "[project]/app/page.jsx",
-                                                                lineNumber: 1378,
+                                                                lineNumber: 1871,
                                                                 columnNumber: 240
                                                             }, this)
                                                         ]
                                                     }, void 0, true, {
                                                         fileName: "[project]/app/page.jsx",
-                                                        lineNumber: 1378,
+                                                        lineNumber: 1871,
                                                         columnNumber: 19
                                                     }, this),
                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("br", {}, void 0, false, {
                                                         fileName: "[project]/app/page.jsx",
-                                                        lineNumber: 1379,
+                                                        lineNumber: 1872,
                                                         columnNumber: 19
                                                     }, this),
                                                     "เลือกแถวในตารางด้านซ้าย",
                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("br", {}, void 0, false, {
                                                         fileName: "[project]/app/page.jsx",
-                                                        lineNumber: 1380,
+                                                        lineNumber: 1873,
                                                         columnNumber: 42
                                                     }, this),
                                                     "เพื่อดูตัวอย่างหน้านั้น"
                                                 ]
                                             }, void 0, true, {
                                                 fileName: "[project]/app/page.jsx",
-                                                lineNumber: 1377,
+                                                lineNumber: 1870,
                                                 columnNumber: 17
                                             }, this) : /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])(__TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["Fragment"], {
                                                 children: [
@@ -3018,27 +3597,33 @@ function PoChecker() {
                                                                         ]
                                                                     }, void 0, true, {
                                                                         fileName: "[project]/app/page.jsx",
-                                                                        lineNumber: 1387,
+                                                                        lineNumber: 1880,
                                                                         columnNumber: 25
                                                                     }, this),
                                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("img", {
                                                                         className: `previewImage previewZoom${Math.round(previewZoom * 100)}`,
                                                                         src: thumb,
-                                                                        alt: `Page ${activeSelectedPage.pages[idx]}`
+                                                                        alt: `Page ${activeSelectedPage.pages[idx]}`,
+                                                                        style: {
+                                                                            width: `${previewZoom * 100}%`,
+                                                                            height: 'auto',
+                                                                            display: 'block',
+                                                                            margin: '0 auto'
+                                                                        }
                                                                     }, void 0, false, {
                                                                         fileName: "[project]/app/page.jsx",
-                                                                        lineNumber: 1390,
+                                                                        lineNumber: 1883,
                                                                         columnNumber: 25
                                                                     }, this)
                                                                 ]
                                                             }, idx, true, {
                                                                 fileName: "[project]/app/page.jsx",
-                                                                lineNumber: 1386,
+                                                                lineNumber: 1879,
                                                                 columnNumber: 23
                                                             }, this))
                                                     }, void 0, false, {
                                                         fileName: "[project]/app/page.jsx",
-                                                        lineNumber: 1384,
+                                                        lineNumber: 1877,
                                                         columnNumber: 19
                                                     }, this),
                                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -3049,27 +3634,34 @@ function PoChecker() {
                                                                     children: "หน้า"
                                                                 }, void 0, false, {
                                                                     fileName: "[project]/app/page.jsx",
-                                                                    lineNumber: 1396,
+                                                                    lineNumber: 1894,
                                                                     columnNumber: 23
+                                                                }, this),
+                                                                /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("dt", {
+                                                                    children: "หน้า"
+                                                                }, void 0, false, {
+                                                                    fileName: "[project]/app/page.jsx",
+                                                                    lineNumber: 1894,
+                                                                    columnNumber: 36
                                                                 }, this),
                                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("dd", {
                                                                     className: "mono pageDetailValue",
                                                                     children: [
-                                                                        activeSelectedPage.pages.join(', '),
+                                                                        formatPageRange(activeSelectedPage.pages),
                                                                         " / ",
                                                                         filteredResults.length,
                                                                         " PO"
                                                                     ]
                                                                 }, void 0, true, {
                                                                     fileName: "[project]/app/page.jsx",
-                                                                    lineNumber: 1396,
-                                                                    columnNumber: 36
+                                                                    lineNumber: 1895,
+                                                                    columnNumber: 23
                                                                 }, this),
                                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("dt", {
                                                                     children: "แหล่งข้อความ"
                                                                 }, void 0, false, {
                                                                     fileName: "[project]/app/page.jsx",
-                                                                    lineNumber: 1397,
+                                                                    lineNumber: 1898,
                                                                     columnNumber: 23
                                                                 }, this),
                                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("dd", {
@@ -3084,20 +3676,20 @@ function PoChecker() {
                                                                             ]
                                                                         }, void 0, true, {
                                                                             fileName: "[project]/app/page.jsx",
-                                                                            lineNumber: 1401,
+                                                                            lineNumber: 1902,
                                                                             columnNumber: 27
                                                                         }, this)
                                                                     ]
                                                                 }, void 0, true, {
                                                                     fileName: "[project]/app/page.jsx",
-                                                                    lineNumber: 1398,
+                                                                    lineNumber: 1899,
                                                                     columnNumber: 23
                                                                 }, this),
                                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("dt", {
                                                                     children: "ต้นทางจาก PDF"
                                                                 }, void 0, false, {
                                                                     fileName: "[project]/app/page.jsx",
-                                                                    lineNumber: 1406,
+                                                                    lineNumber: 1907,
                                                                     columnNumber: 23
                                                                 }, this),
                                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("dd", {
@@ -3105,14 +3697,14 @@ function PoChecker() {
                                                                     children: activeSelectedPage.pdfSource || 'ไม่พบต้นทาง'
                                                                 }, void 0, false, {
                                                                     fileName: "[project]/app/page.jsx",
-                                                                    lineNumber: 1406,
+                                                                    lineNumber: 1907,
                                                                     columnNumber: 45
                                                                 }, this),
                                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("dt", {
                                                                     children: "ปลายทางจาก PDF"
                                                                 }, void 0, false, {
                                                                     fileName: "[project]/app/page.jsx",
-                                                                    lineNumber: 1408,
+                                                                    lineNumber: 1909,
                                                                     columnNumber: 23
                                                                 }, this),
                                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("dd", {
@@ -3121,47 +3713,47 @@ function PoChecker() {
                                                                         children: activeSelectedPage.pdfDestination || 'ไม่พบปลายทาง'
                                                                     }, void 0, false, {
                                                                         fileName: "[project]/app/page.jsx",
-                                                                        lineNumber: 1410,
+                                                                        lineNumber: 1911,
                                                                         columnNumber: 25
                                                                     }, this)
                                                                 }, void 0, false, {
                                                                     fileName: "[project]/app/page.jsx",
-                                                                    lineNumber: 1409,
+                                                                    lineNumber: 1910,
                                                                     columnNumber: 23
                                                                 }, this)
                                                             ]
                                                         }, void 0, true, {
                                                             fileName: "[project]/app/page.jsx",
-                                                            lineNumber: 1395,
+                                                            lineNumber: 1893,
                                                             columnNumber: 21
                                                         }, this)
                                                     }, void 0, false, {
                                                         fileName: "[project]/app/page.jsx",
-                                                        lineNumber: 1394,
+                                                        lineNumber: 1892,
                                                         columnNumber: 19
                                                     }, this)
                                                 ]
                                             }, void 0, true, {
                                                 fileName: "[project]/app/page.jsx",
-                                                lineNumber: 1383,
+                                                lineNumber: 1876,
                                                 columnNumber: 17
                                             }, this)
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/app/page.jsx",
-                                        lineNumber: 1350,
+                                        lineNumber: 1843,
                                         columnNumber: 13
                                     }, this)
                                 ]
                             }, void 0, true, {
                                 fileName: "[project]/app/page.jsx",
-                                lineNumber: 1348,
+                                lineNumber: 1841,
                                 columnNumber: 11
                             }, this)
                         ]
                     }, void 0, true, {
                         fileName: "[project]/app/page.jsx",
-                        lineNumber: 1203,
+                        lineNumber: 1696,
                         columnNumber: 9
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("footer", {
@@ -3169,13 +3761,13 @@ function PoChecker() {
                         children: "by Process Excellence Team 2026"
                     }, void 0, false, {
                         fileName: "[project]/app/page.jsx",
-                        lineNumber: 1422,
+                        lineNumber: 1923,
                         columnNumber: 9
                     }, this)
                 ]
             }, void 0, true, {
                 fileName: "[project]/app/page.jsx",
-                lineNumber: 1068,
+                lineNumber: 1554,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$route$2d$modules$2f$app$2d$page$2f$vendored$2f$ssr$2f$react$2d$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$ssr$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -3190,23 +3782,23 @@ function PoChecker() {
                             alt: `Print Page ${item.pageNum}`
                         }, void 0, false, {
                             fileName: "[project]/app/page.jsx",
-                            lineNumber: 1432,
+                            lineNumber: 1933,
                             columnNumber: 30
                         }, this)
                     }, i, false, {
                         fileName: "[project]/app/page.jsx",
-                        lineNumber: 1431,
+                        lineNumber: 1932,
                         columnNumber: 13
                     }, this))
             }, void 0, false, {
                 fileName: "[project]/app/page.jsx",
-                lineNumber: 1427,
+                lineNumber: 1928,
                 columnNumber: 7
             }, this)
         ]
     }, void 0, true, {
         fileName: "[project]/app/page.jsx",
-        lineNumber: 1056,
+        lineNumber: 1542,
         columnNumber: 5
     }, this);
 }

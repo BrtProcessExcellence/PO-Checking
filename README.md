@@ -35,9 +35,11 @@ The easiest way to deploy your Next.js app is to use the [Vercel Platform](https
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
 
-## Microsoft sign-in
+## Authentication
 
-The app requires Microsoft Entra ID sign-in before the checker can be opened. Copy `.env.example` to `.env.local` and set these values:
+Microsoft sign-in is temporarily disabled. The `/login` page redirects to the checker, which is currently available without signing in. Do not expose this configuration publicly until authentication is restored.
+
+To restore Microsoft Entra ID sign-in, copy `.env.example` to `.env.local` and set these values:
 
 ```env
 AUTH_SECRET=generate-a-long-random-value
@@ -45,6 +47,14 @@ AUTH_MICROSOFT_ENTRA_ID_ID=your-application-client-id
 AUTH_MICROSOFT_ENTRA_ID_SECRET=your-client-secret
 AUTH_MICROSOFT_ENTRA_ID_TENANT_ID=your-tenant-id
 ```
+
+Generate a strong `AUTH_SECRET` with:
+
+```bash
+node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"
+```
+
+Use the generated value in `.env.local`, replace the Microsoft Entra placeholders with your app registration values, and restart the development server. Do not commit `.env.local`.
 
 In the Microsoft Entra app registration, add this web redirect URI:
 

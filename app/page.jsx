@@ -44,6 +44,14 @@ const CUSTOMER_EXCEL_COLUMNS = {
   Makro: {
     ship: ['Ship-to Party', 'Ship-to-Party Name1', 'ส่งสินค้าไปที่', 'Ship To Address'],
     description: ['Material Description', 'Product description', 'รายการ', 'Description']
+  },
+  'Big C': {
+    ship: ['Ship-to-Party Name1', 'Ship-to Party', 'Ship-to-Party City', 'ส่งสินค้าที่'],
+    description: ['Material Description', 'Product description', 'Item']
+  },
+  'Mini Big C': {
+    ship: ['Ship-to Name', 'Store Name', 'Address ( TH)', 'Ship-to'],
+    description: ['Material Desc.', 'Material Description', 'Product Group']
   }
 };
 
@@ -116,6 +124,10 @@ const L = {
   postal: loose('ไปรษณีย์'),
   itemName: loose('ชื่อสินค้า'),
   sendTo: loose('ส่งสินค้าไปที่'),
+  bigcSendTo: '(?:ส\\s*่?\\s*ง\\s*ส\\s*ิ\\s*น\\s*ค\\s*้?\\s*า\\s*ท\\s*ี\\s*่?)',
+  bigcBranch: '\\d{5}\\s+[A-Z0-9]{4,8}\\s*[:：]\\s*\\d{13}',
+  bigcHeadOffice: '1\\s*HEAD\\s*OFFICE\\s*[:：]?\\s*\\d*',
+  bigcVendor: '6003462\\s*[:：]\\s*\\d*',
 };
 const NAMSONG = 'น\\s*(?:ำ|่\\s*า|า)\\s*ส\\s*่?\\s*ง';   // นำส่ง / น่าส่ง
 const FOOTER = `อ้างถึง|หมายเหตุ|Department|${loose('ผู้อนุมัติ')}|P/R|${loose('ผู้ซื้อ')}`;
@@ -126,14 +138,71 @@ function stripPhone(text) {
   return text.replace(re, ' ').replace(/\s{2,}/g, ' ').trim();
 }
 // ---------- จังหวัด ----------
-const THAI_PROVINCES = ['กรุงเทพมหานคร', 'กระบี่', 'กาญจนบุรี', 'กาฬสินธุ์', 'กำแพงเพชร', 'ขอนแก่น', 'จันทบุรี', 'ฉะเชิงเทรา', 'ชลบุรี', 'ชัยนาท', 'ชัยภูมิ', 'ชุมพร', 'เชียงราย', 'เชียงใหม่', 'ตรัง', 'ตราด', 'ตาก', 'นครนายก', 'นครปฐม', 'นครพนม', 'นครราชสีมา', 'นครศรีธรรมราช', 'นครสวรรค์', 'นนทบุรี', 'นราธิวาส', 'น่าน', 'บึงกาฬ', 'บุรีรัมย์', 'ปทุมธานี', 'ประจวบคีรีขันธ์', 'ปราจีนบุรี', 'ปัตตานี', 'พระนครศรีอยุธยา', 'พะเยา', 'พังงา', 'พัทลุง', 'พิจิตร', 'พิษณุโลก', 'เพชรบุรี', 'เพชรบูรณ์', 'แพร่', 'ภูเก็ต', 'มหาสารคาม', 'มุกดาหาร', 'แม่ฮ่องสอน', 'ยโสธร', 'ยะลา', 'ร้อยเอ็ด', 'ระนอง', 'ระยอง', 'ราชบุรี', 'ลพบุรี', 'ลำปาง', 'ลำพูน', 'เลย', 'ศรีสะเกษ', 'สกลนคร', 'สงขลา', 'สตูล', 'สมุทรปราการ', 'สมุทรสงคราม', 'สมุทรสาคร', 'สระแก้ว', 'สระบุรี', 'สิงห์บุรี', 'สุโขทัย', 'สุพรรณบุรี', 'สุราษฎร์ธานี', 'สุรินทร์', 'หนองคาย', 'หนองบัวลำภู', 'อ่างทอง', 'อำนาจเจริญ', 'อุดรธานี', 'อุตรดิตถ์', 'อุทัยธานี', 'อุบลราชธานี'];
+const THAI_PROVINCES = ['กรุงเทพมหานคร', 'กระบี่', 'กาญจนบุรี', 'กาฬสินธุ์', 'กำแพงเพชร', 'ขอนแก่น', 'จันทบุรี', 'ฉะเชิงเทรา', 'ชลบุรี', 'ชัยนาท', 'ชัยภูมิ', 'ชุมพร', 'เชียงราย', 'เชียงใหม่', 'ตรัง', 'ตราด', 'ตาก', 'นครนายก', 'นครปฐม', 'นครพนม', 'นครราชสีมา', 'นครศรีธรรมราช', 'นครสวรรค์', 'นนทบุรี', 'นราธิวาส', 'น่าน', 'บึงกาฬ', 'บุรีรัมย์', 'ปทุมธานี', 'ประจวบคีรีขันธ์', 'ปราจีนบุรี', 'ปัตตานี', 'พระนครศรีอยุธยา', 'พะเยา', 'พังงา', 'พัทลุง', 'พิจิตร', 'พิษณุโลก', 'เพชรบุรี', 'เพชรบูรณ์', 'แพร่', 'ภูเก็ต', 'มหาสารคาม', 'มุกดาหาร', 'แม่ฮ่องสอน', 'ยโสธร', 'ยะลา', 'ร้อยเอ็ด', 'ระนอง', 'ระยอง', 'ราชบุรี', 'ลพบุรี', 'ลำปาง', 'ลำพูน', 'เลย', 'ศรีสะเกษ', 'สกลนคร', 'สงขลา', 'สตูล', 'สมุทรปราการ', 'สมุทรสงคราม', 'สมุทรสาคร', 'สระแก้ว', 'สระบุรี', 'สิงห์บุรี', 'สุโขทัย', 'สุพรรณบุรี', 'สุราษฎร์ธานี', 'สุรินทร์', 'หนองคาย', 'หนองบัวลำภู', 'อ่างทอง', 'อำนาจเจริญ', 'อุดรธานี', 'อุตรดิตถ์', 'อุทัยธานี', 'อุบลราชธานี', 'กทม'];
+const PROVINCES_TYPOS = {
+  'กรุงเทพม': 'กรุงเทพมหานคร',
+  'นนทบุร': 'นนทบุรี',
+  'ชลบุร': 'ชลบุรี',
+  'เพชรบุร': 'เพชรบุรี',
+  'ปราจีนบุร': 'ปราจีนบุรี',
+  'ลพบุร': 'ลพบุรี',
+  'สระบุร': 'สระบุรี',
+  'สิงห์บุร': 'สิงห์บุรี',
+  'สุพรรณบุร': 'สุพรรณบุรี',
+  'จันทบุร': 'จันทบุรี',
+  'ราชบุร': 'ราชบุรี',
+  'อยุธยา': 'พระนครศรีอยุธยา',
+  'โคราช': 'นครราชสีมา'
+};
+const PROVINCE_EN_ALIAS = {
+  'NAKORNNAYOK': 'นครนายก', 'NAKORN NAYOK': 'นครนายก',
+  'BANGKOK': 'กรุงเทพมหานคร', 'BKK': 'กรุงเทพมหานคร',
+  'CHONBURI': 'ชลบุรี', 'RAYONG': 'ระยอง',
+  'KHONKAEN': 'ขอนแก่น', 'KHON KAEN': 'ขอนแก่น',
+  'SURAT THANI': 'สุราษฎร์ธานี', 'SURATTHANI': 'สุราษฎร์ธานี',
+  'CHIANG MAI': 'เชียงใหม่', 'CHIANGMAI': 'เชียงใหม่',
+  'AYUTTHAYA': 'พระนครศรีอยุธยา', 'KORAT': 'นครราชสีมา',
+  'NAKHON RATCHASIMA': 'นครราชสีมา', 'PHUKET': 'ภูเก็ต',
+  'RATCHABURI': 'ราชบุรี', 'CHACHOENGSAO': 'ฉะเชิงเทรา',
+  'PATHUM THANI': 'ปทุมธานี', 'PATHUMTHANI': 'ปทุมธานี',
+  'SAMUT PRAKAN': 'สมุทรปราการ', 'SAMUTPRAKAN': 'สมุทรปราการ',
+  'NONTHABURI': 'นนทบุรี', 'NAKHON PATHOM': 'นครปฐม',
+  'SAMUT SAKHON': 'สมุทรสาคร', 'SAMUTSAKHON': 'สมุทรสาคร',
+  'SONGKHLA': 'สงขลา', 'UDON THANI': 'อุดรธานี',
+  'UDONTHANI': 'อุดรธานี', 'BURI RAM': 'บุรีรัมย์',
+  'BURIRAM': 'บุรีรัมย์', 'LAMPHUN': 'ลำพูน',
+  'PRACHUAP KHIRI KHAN': 'ประจวบคีรีขันธ์', 'PHITSANULOK': 'พิษณุโลก',
+  'KANCHANABURI': 'กาญจนบุรี', 'SA KAEO': 'สระแก้ว',
+  'SAKAEO': 'สระแก้ว', 'CHUMPHON': 'ชุมพร',
+  'TRAT': 'ตราด', 'PHANGNGA': 'พังงา',
+  'PHANG NGA': 'พังงา', 'TRANG': 'ตรัง',
+  'SATUN': 'สตูล', 'LOPBURI': 'ลพบุรี',
+  'SARABURI': 'สระบุรี', 'NONG KHAI': 'หนองคาย',
+  'NONGKHAI': 'หนองคาย', 'SI SA KET': 'ศรีสะเกษ',
+  'SISAKET': 'ศรีสะเกษ', 'LAMPANG': 'ลำปาง',
+  'KAMPHAENG PHET': 'กำแพงเพชร', 'KAMPHAENGPHET': 'กำแพงเพชร',
+  'BUENG KAN': 'บึงกาฬ', 'BUENGKAN': 'บึงกาฬ',
+  'MAHA SARAKHAM': 'มหาสารคาม', 'MAHASARAKHAM': 'มหาสารคาม',
+  'PHICHIT': 'พิจิตร', 'UTTARADIT': 'อุตรดิตถ์',
+  'CHAI NAT': 'ชัยนาท', 'CHAINAT': 'ชัยนาท',
+  'PRACHINBURI': 'ปราจีนบุรี', 'PRACHIN BURI': 'ปราจีนบุรี',
+  'LOEI': 'เลย', 'NONG BUA LAM PHU': 'หนองบัวลำภู',
+  'NONGBUALAMPHU': 'หนองบัวลำภู', 'PHAYAO': 'พะเยา',
+  'PHRAE': 'แพร่', 'AMNAT CHAROEN': 'อำนาจเจริญ',
+  'YASOTHON': 'ยโสธร', 'ROI ET': 'ร้อยเอ็ด',
+  'ROIET': 'ร้อยเอ็ด', 'KALASIN': 'กาฬสินธุ์',
+  'MUKDAHAN': 'มุกดาหาร', 'SUPHANBURI': 'สุพรรณบุรี',
+  'SAMUT SONGKHRAM': 'สมุทรสงคราม', 'NAKHON SI THAMMARAT': 'นครศรีธรรมราช',
+  'NAKHON SAWAN': 'นครสวรรค์', 'MAE HONG SON': 'แม่ฮ่องสอน',
+  'NARATHIWAT': 'นราธิวาส', 'KRABI': 'กระบี่',
+  'TAK': 'ตาก', 'NAN': 'น่าน', 'YALA': 'ยะลา'
+};
 const PROVINCE_ALIAS = { 'กทม': 'กรุงเทพมหานคร', 'กรุงเทพ': 'กรุงเทพมหานคร', 'อยุธยา': 'พระนครศรีอยุธยา', 'โคราช': 'นครราชสีมา' };
 const PROVINCE_KEYS = [...THAI_PROVINCES, ...Object.keys(PROVINCE_ALIAS)].sort((a, b) => b.length - a.length);
 const DEST_NOT_FOUND = 'ไม่พบจังหวัดปลายทาง';
 const SOURCE_NOT_FOUND = 'ไม่พบต้นทาง';
 const ORDER_NUMBER_NOT_FOUND = 'ไม่พบเลขที่';
 
-// startsWith ทำให้ชื่อที่ถูกตัดท้าย เช่น "กรุงเทพม" ก็ยังจับได้
 function resolveProvince(word) {
   const w = String(word || '').replace(/[ฯ.]/g, '');
   for (const key of PROVINCE_KEYS) if (w.startsWith(key)) return PROVINCE_ALIAS[key] || key;
@@ -170,29 +239,56 @@ function findProvinceInSlice(slice) {
   return null;
 }
 
-// ทางสำรอง (ไม่มีเลขไปรษณี): จ.xxx -> คำก่อนเลข 5 หลัก -> ชื่อจังหวัดตรงๆ
 function scanProvinceName(t) {
-  for (const m of t.matchAll(/(?:จ\s*\.|จังหวัด)\s*([ก-๙]+)/g)) {
-    const p = resolveProvince(m[1]); if (p) return p;
+  if (!t) return '';
+  const found = [];
+
+  // 3.1 หาจังหวัดภาษาไทยตรงๆ
+  for (const p of THAI_PROVINCES) {
+    const idx = t.lastIndexOf(p);
+    if (idx !== -1) found.push({ idx, prov: p === 'กทม' ? 'กรุงเทพมหานคร' : p });
   }
-  for (const m of t.matchAll(/([ก-๙]+)\s*\d{5}(?!\d)/g)) {
-    const p = resolveProvince(m[1]); if (p) return p;
+
+  // 3.2 หาคำที่โดนสแกนขาดหายไป (Typos)
+  for (const [typo, actual] of Object.entries(PROVINCES_TYPOS)) {
+    const idx = t.lastIndexOf(typo);
+    if (idx !== -1) found.push({ idx, prov: actual });
   }
-  for (const key of PROVINCE_KEYS) {
-    const hit = key.length <= 4
-      ? new RegExp(`(?:^|\\s|\\.)${key}(?=\\s|\\d|$)`).test(t)
-      : t.includes(key);
-    if (hit) return PROVINCE_ALIAS[key] || key;
+
+  // 3.3 หาภาษาอังกฤษ (กรณี Lotus / ภาษาคาราโอเกะ)
+  const tUp = t.toUpperCase();
+  for (const [en, th] of Object.entries(PROVINCE_EN_ALIAS)) {
+    const idx = tUp.lastIndexOf(en);
+    if (idx !== -1) found.push({ idx, prov: th });
+  }
+
+  if (found.length > 0) {
+    // เรียงลำดับเอาตัวที่โผล่มาหลังสุด (ท้ายที่อยู่)
+    found.sort((a, b) => b.idx - a.idx);
+    return found[0].prov;
   }
   return '';
 }
-
 
 // ---------- กติกาของแต่ละห้าง ----------
 const RULES_LOTUS_MAKRO = {
   source: { label: [L.maker, L.orderer], end: `${L.sendTo}|${FOOTER}`, maxLen: 300 },
   dest: { label: [L.sendTo], end: `${L.seq}|Page|${FOOTER}`, maxLen: 300 },
 };
+
+const RULES_BIGC = {
+  source: {
+    label: [L.bigcHeadOffice, L.bigcVendor, L.orderer],
+    end: `${L.seq}|${FOOTER}`,
+    maxLen: 350,
+  },
+  dest: {
+    label: [L.bigcBranch, L.bigcSendTo],
+    end: `${L.bigcHeadOffice}|${L.bigcVendor}|${L.seq}|${FOOTER}`,
+    maxLen: 400,
+  },
+};
+
 const PROVINCE_RULES = {
   'CJ Express': {
     source: { label: [L.supplier, L.orderer], end: `${L.shipTo}|${FOOTER}`, maxLen: 300, fallbackTop: true },
@@ -204,6 +300,8 @@ const PROVINCE_RULES = {
   },
   Makro: RULES_LOTUS_MAKRO,
   Lotus: RULES_LOTUS_MAKRO,
+  'Big C': RULES_BIGC,
+  'Mini Big C': RULES_BIGC,
 };
 const LEADING_CODE = /^\d{4,14}\s*/;   // รหัสผู้ขาย/สาขา/ร้านที่มาก่อนที่อยู่ (ไม่ใช่รหัสไปรษณีย์)
 
@@ -252,15 +350,236 @@ function cleanOcrNoise(text) {
   return text;
 }
 
+// ฟังก์ชันย่อภาพสแกนโดยล็อกเม็ดสีดำที่ผ่าน OCR แล้วไม่ให้จางหาย
+const buildCrispPreviewDataUrl = (sourceCanvas, targetWidth = 1200) => {
+  const srcW = sourceCanvas.width;
+  const srcH = sourceCanvas.height;
+  if (!srcW || !srcH) return '';
+
+  const scale = Math.min(1, targetWidth / srcW);
+  const dstW = Math.max(1, Math.floor(srcW * scale));
+  const dstH = Math.max(1, Math.floor(srcH * scale));
+
+  const srcCtx = sourceCanvas.getContext('2d');
+  const srcData = srcCtx.getImageData(0, 0, srcW, srcH).data;
+
+  const dstCanvas = document.createElement('canvas');
+  dstCanvas.width = dstW;
+  dstCanvas.height = dstH;
+  const dstCtx = dstCanvas.getContext('2d');
+  const dstImg = dstCtx.createImageData(dstW, dstH);
+  const dstData = dstImg.data;
+
+  // เทพื้นหลังสีขาวทั้งหน้า
+  dstData.fill(255);
+
+  // ถ้าพิกเซลต้นฉบับเป็นสีดำจาก OCR ให้ลงจุดสีดำที่ภาพพรีวิวทันที
+  for (let sy = 0; sy < srcH; sy++) {
+    const dy = Math.min(dstH - 1, Math.floor(sy * scale));
+    const srcRowOffset = sy * srcW * 4;
+    const dstRowOffset = dy * dstW * 4;
+
+    for (let sx = 0; sx < srcW; sx++) {
+      const si = srcRowOffset + sx * 4;
+      if (srcData[si + 3] < 10) continue;
+
+      const gray = (srcData[si] * 77 + srcData[si + 1] * 150 + srcData[si + 2] * 29) >> 8;
+      if (gray < 200) {
+        const dx = Math.min(dstW - 1, Math.floor(sx * scale));
+        const di = dstRowOffset + dx * 4;
+        dstData[di] = 0;
+        dstData[di + 1] = 0;
+        dstData[di + 2] = 0;
+        dstData[di + 3] = 255;
+      }
+    }
+  }
+
+  dstCtx.putImageData(dstImg, 0, 0);
+  return dstCanvas.toDataURL('image/png');
+};
+
+const processPdf = async () => {
+  if (!pdfFiles.length || isProcessing) return;
+  setIsProcessing(true);
+  setStatus({ active: true, text: 'กำลังเตรียมระบบ…', current: 0, total: 0 });
+  setPageResults([]);
+  setSelectedPage(null);
+  setSelectedPrintPages([]);
+  setResultsPage(1);
+
+  let tesseractWorker = null;
+  try {
+    const pdfDocs = [];
+    for (const file of pdfFiles) {
+      const buf = await file.arrayBuffer();
+      pdfDocs.push(await pdfjsLib.getDocument({ data: buf }).promise);
+    }
+    const total = pdfDocs.reduce((pageCount, pdfDoc) => pageCount + pdfDoc.numPages, 0);
+
+    const results = [];
+    let pageNumber = 0;
+    let currentDocumentPO = ORDER_NUMBER_NOT_FOUND;
+
+    for (const [documentIndex, pdfDoc] of pdfDocs.entries()) {
+      currentDocumentPO = ORDER_NUMBER_NOT_FOUND;
+      const poGroups = {};
+
+      for (let p = 1; p <= pdfDoc.numPages; p++) {
+        pageNumber += 1;
+        setStatus({ active: true, text: `กำลังอ่านข้อความหน้า ${pageNumber} จาก ${total}…`, current: pageNumber, total });
+        const page = await pdfDoc.getPage(p);
+
+        const baseViewport = page.getViewport({ scale: 1.0 });
+        const previewScale = Math.min(PREVIEW_SCALE, 1200 / baseViewport.width);
+        const ocrScale = Math.min(OCR_SCALE, 2800 / baseViewport.width);
+
+        const textContent = await page.getTextContent();
+        let rawText = textContent.items.map(i => i.str).join(' ').trim();
+        let source = 'text-layer';
+        let ocrConfidence = null;
+        let thumbDataUrl = '';
+
+        if (rawText.length < 8) {
+          // ------ กรณีไฟล์ภาพสแกน (Mini Big C) ------
+          source = 'ocr';
+          if (!tesseractWorker) {
+            setStatus({ active: true, text: 'กำลังโหลดโมดูล OCR (ครั้งแรกอาจใช้เวลาสักครู่)…', current: pageNumber, total });
+            tesseractWorker = await Tesseract.createWorker('tha+eng', 1);
+            await tesseractWorker.setParameters({
+              tessedit_pageseg_mode: Tesseract.PSM.SPARSE_TEXT,
+              user_defined_dpi: String(Math.round(ocrScale * 72)),
+              preserve_interword_spaces: '1',
+            });
+          }
+          setStatus({ active: true, text: `กำลังประมวลผล ${pageNumber} จาก ${total} …`, current: pageNumber, total });
+
+          const ocrViewport = page.getViewport({ scale: ocrScale });
+          const ocrCanvas = document.createElement('canvas');
+          ocrCanvas.width = Math.floor(ocrViewport.width);
+          ocrCanvas.height = Math.floor(ocrViewport.height);
+          const ctxOcr = ocrCanvas.getContext('2d');
+
+          const tempOcrCanvas = document.createElement('canvas');
+          tempOcrCanvas.width = ocrCanvas.width;
+          tempOcrCanvas.height = ocrCanvas.height;
+          await page.render({ canvasContext: tempOcrCanvas.getContext('2d'), viewport: ocrViewport }).promise;
+
+          ctxOcr.fillStyle = '#ffffff';
+          ctxOcr.fillRect(0, 0, ocrCanvas.width, ocrCanvas.height);
+          ctxOcr.drawImage(tempOcrCanvas, 0, 0);
+
+          // 1. เร่งเส้นตัวหนังสือให้ดำสนิทบนพื้นขาวก่อน
+          preprocessForOcr(ocrCanvas);
+
+          // 2. ดึงภาพจาก ocrCanvas ที่เร่งสีดำแล้วมาทำรูปพรีวิว
+          thumbDataUrl = buildCrispPreviewDataUrl(ocrCanvas, 1200);
+
+          // 3. ส่งเข้า OCR อ่านข้อความ
+          const { data } = await tesseractWorker.recognize(ocrCanvas);
+          rawText = data.text.trim();
+          ocrConfidence = data.confidence;
+        } else {
+          // ------ กรณีไฟล์ PDF ปกติ ------
+          const viewport = page.getViewport({ scale: previewScale });
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.floor(viewport.width);
+          canvas.height = Math.floor(viewport.height);
+          const ctxPreview = canvas.getContext('2d');
+
+          const tempPreviewCanvas = document.createElement('canvas');
+          tempPreviewCanvas.width = canvas.width;
+          tempPreviewCanvas.height = canvas.height;
+          await page.render({ canvasContext: tempPreviewCanvas.getContext('2d'), viewport }).promise;
+
+          ctxPreview.fillStyle = '#ffffff';
+          ctxPreview.fillRect(0, 0, canvas.width, canvas.height);
+          ctxPreview.drawImage(tempPreviewCanvas, 0, 0);
+
+          thumbDataUrl = canvas.toDataURL('image/png');
+        }
+
+        const addressText = extractPdfAddressText(rawText, customer);
+        const addr = extractAndCorrectAddress(addressText);
+        const formattedAddr = formatAddress(addr);
+
+        const pdfDestination = extractPdfDestination(rawText, customer, addr, addressText);
+        const pdfSource = extractPdfSource(rawText, customer);
+
+        let extractedPO = extractPdfOrderNumber(rawText, customer);
+
+        const keywords = ['ใบสั่งซื้อ', 'purchase order', 'ผู้สั่งซื้อ', 'กำหนดส่ง', 'สถานที่ส่งของ', 'ผู้จำหน่าย', 'เลขประจำตัวผู้เสียภาษี', 'เงื่อนไขการชำระเงิน', 'วันที่ส่งสินค้า'];
+        const isNewDoc = keywords.filter(kw => normalizePdfText(rawText).includes(kw)).length >= 2;
+
+        if (extractedPO !== ORDER_NUMBER_NOT_FOUND) {
+          currentDocumentPO = extractedPO;
+        } else {
+          if (isNewDoc) {
+            currentDocumentPO = ORDER_NUMBER_NOT_FOUND;
+            extractedPO = ORDER_NUMBER_NOT_FOUND;
+          } else {
+            extractedPO = currentDocumentPO;
+          }
+        }
+
+        const pdfItems = extractPdfItems(rawText, customer);
+
+        const rowData = {
+          id: `page-${pageNumber}`,
+          pages: [pageNumber],
+          rawText,
+          source,
+          ocrConfidence,
+          addr,
+          formattedAddr,
+          pdfAddress: pdfDestination,
+          pdfDestination,
+          pdfSource,
+          pdfOrderNumber: extractedPO,
+          pdfItems,
+          codes: pdfItems,
+          thumbDataUrls: [thumbDataUrl]
+        };
+
+        addPdfPageResult(results, poGroups, rowData, documentIndex, ORDER_NUMBER_NOT_FOUND);
+      }
+    }
+
+    setPageResults(results);
+    if (results.length > 0) setSelectedPage(results[0]);
+    setPreviewZoom(1);
+  } catch (error) {
+    console.error(error);
+    const message = error instanceof Error ? error.message : String(error);
+    alert(`เกิดข้อผิดพลาดในการประมวลผล PDF: ${message}`);
+  } finally {
+    try {
+      if (tesseractWorker) await tesseractWorker.terminate();
+    } catch (cleanupError) {
+      console.error('ปิดระบบ OCR ไม่สำเร็จ', cleanupError);
+    } finally {
+      setStatus({ active: false, text: '', current: 0, total: 0 });
+      setIsProcessing(false);
+    }
+  }
+};
+
 function preprocessForOcr(canvas) {
   const ctx = canvas.getContext('2d');
   const { width, height } = canvas;
   const imageData = ctx.getImageData(0, 0, width, height);
   const d = imageData.data;
   const gray = new Uint8ClampedArray(width * height);
+
+  // แปลงภาพโปร่งใสให้กลายเป็นพื้นหลังสีขาวก่อน
   for (let i = 0, p = 0; i < d.length; i += 4, p++) {
-    gray[p] = 0.299 * d[i] + 0.587 * d[i + 1] + 0.114 * d[i + 2];
+    const alpha = d[i + 3] / 255; // ค่าความโปร่งใส
+    const r = d[i] * alpha + 255 * (1 - alpha);
+    const g = d[i + 1] * alpha + 255 * (1 - alpha);
+    const b = d[i + 2] * alpha + 255 * (1 - alpha);
+    gray[p] = 0.299 * r + 0.587 * g + 0.114 * b;
   }
+
   let sumB = 0, wB = 0, maxVar = 0, threshold = 127;
   const hist = new Array(256).fill(0);
   for (let p = 0; p < gray.length; p++) hist[gray[p]]++;
@@ -276,9 +595,11 @@ function preprocessForOcr(canvas) {
     const varBetween = wB * wF * (mB - mF) * (mB - mF);
     if (varBetween > maxVar) { maxVar = varBetween; threshold = t; }
   }
+
   for (let i = 0, p = 0; i < d.length; i += 4, p++) {
     const v = gray[p] > threshold ? 255 : 0;
     d[i] = d[i + 1] = d[i + 2] = v;
+    d[i + 3] = 255; // บังคับให้ไม่โปร่งใส
   }
   ctx.putImageData(imageData, 0, 0);
   return canvas;
@@ -296,16 +617,19 @@ const ORDER_LABELS = [
   'Order\\s*(?:No\\.?|Number|#)',
 ];
 
-// ลบ \\s* ออกเพื่อบังคับให้เครื่องหมายโคลอนติดกับคำว่าเลขที่เสมอ
 const LABEL_COLON = loose('เลขที่') + '[:：]';
 const MAKRO_LABEL = loose('เลขที่ใบสั่งซื้อ') + '\\s*[:：]?\\s*(?:' + loose('วันที่') + '.{0,10}' + loose('สินค้า') + '\\s*[:：]?\\s*\\d+\\s*(?:วัน|วั)\\s*)?';
 const CPALL_LABEL = loose('เลขที่') + '\\s*[:：]\\s*(?:' + loose('กำหนดส่ง') + '\\s*[:：]?\\s*\\d+\\s*(?:วัน|วั)\\s*(?:' + loose('ตามเงื่อนไข') + ')?\\s*)?';
 const LOTUS_LABEL = loose('ใบสั่งซื้อสินค้า');
 
+const BIGC_PO_LABEL = `BIGC\\s*EDI(?:\\s*\\|)?`;
+
 const ORDER_RULES = {
   'Makro': { labels: [MAKRO_LABEL, loose('เลขที่ใบสั่งซื้อ')], relaxed: true },
   'Lotus': { labels: [LOTUS_LABEL, LABEL_COLON], relaxed: true },
   'CP All': { labels: [CPALL_LABEL, LABEL_COLON], relaxed: true },
+  'Big C': { labels: [BIGC_PO_LABEL, loose('เลขที่ใบสั่งซื้อ')], relaxed: false },
+  'Mini Big C': { labels: [BIGC_PO_LABEL, loose('เลขที่ใบสั่งซื้อ')], relaxed: false },
 };
 
 const ORDER_PREFIX = '(?:(?:P\\.?\\s*O\\.?|No\\.?|Number|#)\\s*[:：.]?\\s*)?';
@@ -445,6 +769,28 @@ function extractPdfOrderNumber(rawText, customer) {
 }
 
 function extractPdfDestination(rawText, customer, addr, addressText) {
+  if (customer === 'Big C' || customer === 'Mini Big C') {
+    const text = rawText.replace(/\n/g, ' ');
+    // จับรูปแบบ 1: 22275 MSDAN3: ...
+    const bcMatch = text.match(/(\d{5}\s+[A-Z0-9]{4,8}\s*[:：]\s*\d{13}\s*บมจ\..*?(?=\s*(?:โทร|ผู้สั่งซื้อ|เลขประจำตัว|ส่งสินค[้]?าที่|1\s*HEAD)))/i);
+    // จับรูปแบบ 2: บริษัท บิ๊กซีซูเปอร์เซ็นเตอร์ จำกัด (มหาชน) (สาขา MBC บางพลี)...
+    const mbcMatch = text.match(/((?:บริษัท\s*บิ๊กซี|บมจ\.?\s*บิ๊กซี).*?\([^)]+\).*?(?=\s*(?:โทร|ผู้สั่งซื้อ|เลขประจำตัว|1\s*HEAD)))/i);
+
+    let fullText = null;
+    if (bcMatch) fullText = bcMatch[1];
+    else if (mbcMatch) fullText = mbcMatch[1];
+    else {
+      const fallbackMatch = text.match(/ส่งสินค[้]?าที่\s*(.+?)(?=\s*(?:โทร|ผู้สั่งซื้อ|เลขประจำตัว))/i);
+      if (fallbackMatch) fullText = fallbackMatch[1];
+    }
+
+    if (fullText) {
+      const prov = scanProvinceName(fullText); // สกัดจังหวัดด้วยฟังก์ชันเดิมที่เขียนไว้
+      if (prov) return prov;
+    }
+    return DEST_NOT_FOUND;
+  }
+
   const r = locateProvince(rawText, customer, 'dest');
   if (r.province) return r.province;
   if (addr && addr.changwat) return addr.changwat;
@@ -456,8 +802,8 @@ function normalizeOcrArtifacts(text) {
     .replace(/Ѽ\s*า/g, 'ำ')
     .replace(/Ѽ/g, 'ื่')
     .replace(/ҕ/g, '่')
-    .replace(/Ѱ/g, 'แ')        
-    .replace(/นื่้า/g, 'น้ำ')     
+    .replace(/Ѱ/g, 'แ')
+    .replace(/นื่้า/g, 'น้ำ')
     .replace(/นํ้า/g, 'น้ำ')
     .replace(/น้ํา/g, 'น้ำ');
 
@@ -468,6 +814,16 @@ function normalizeOcrArtifacts(text) {
 }
 
 function extractPdfSource(rawText, customer) {
+  if (customer === 'Big C' || customer === 'Mini Big C') {
+    const text = rawText.replace(/\n/g, ' ');
+    const bcMatch = text.match(/(1\s*HEAD\s*OFFICE\s*[:：].*?)(?=\s*(?:โทร|ร้านค[้]?า|6003462))/i);
+    if (bcMatch) {
+      const prov = scanProvinceName(bcMatch[1].replace(/\(สำนักงาน\s*ใหญ่\)/g, '(สำนักงานใหญ่)'));
+      if (prov) return prov;
+    }
+    return SOURCE_NOT_FOUND;
+  }
+
   return locateProvince(rawText, customer, 'source').province || SOURCE_NOT_FOUND;
 }
 
@@ -554,6 +910,44 @@ function extractPdfItems(rawText, customer) {
 
     if (results.length > 0) return [...new Set(results)];
   }
+
+  if (customer === 'Big C' || customer === 'Mini Big C') {
+    const barcodes = [...text.matchAll(/\b885099\d{7}\b/g)];
+    const footerRegex = /(?:หมายเหตุ|มูลค่ารวม|ส่วนลด\s*(?:\(บาท\)|\(%\))?|ภาษีมูลค่าเพิ่ม|รวมมูลค่า|ข้อความสำคัญ|ข้อควรระวัง)/i;
+
+    for (let index = 0; index < barcodes.length; index++) {
+      const barcode = barcodes[index];
+      const nextBarcode = barcodes[index + 1];
+      let rowText = text.slice(barcode.index + barcode[0].length, nextBarcode?.index ?? text.length);
+      const footer = footerRegex.exec(rowText);
+      if (footer) rowText = rowText.slice(0, footer.index);
+      rowText = rowText.replace(/^[\s|:：-]+/, '').trim();
+
+      const thaiVolume = /\d+(?:[.,]\d+)?\s*(?:มล\.?|ลิตร)/i.exec(rowText);
+      const englishVolume = /\d{2,4}\s*ML\b/i.exec(rowText);
+      const firstAmount = /\s+\d{1,3}(?:,\d{3})*\.\d{2,3}\b/.exec(rowText);
+      const endIndex = thaiVolume
+        ? thaiVolume.index + thaiVolume[0].length
+        : englishVolume
+          ? englishVolume.index
+          : firstAmount
+            ? firstAmount.index
+            : rowText.length;
+
+      const itemName = rowText.slice(0, endIndex)
+        .replace(/น้้า/g, 'น้ำ')
+        .replace(/น้าดื่ม/g, 'น้ำดื่ม')
+        .replace(/([\u0e01-\u0e2e\u0e4c])\u0e4c+/g, '$1')
+        .replace(/สิงหน้าดื่ม/g, 'สิงห์น้ำดื่ม')
+        .replace(/น้ำดื่ม\s*สิงห์/g, 'สิงห์น้ำดื่ม')
+        .replace(/สิงห(?=[พิงค์|เลมอน|ยูซุ|บ๊วย|น้ำ])/g, 'สิงห์')
+        .replace(/[|]/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (itemName) results.push(itemName);
+    }
+    return [...new Set(results)];
+  }
   // ====================================================================
   const itemLabel = customer === 'CJ Express' ? 'ชื่อสินค้า' : 'รายการ';
   const itemMatch = rawText.match(new RegExp(`(?:${itemLabel})\\s*[:：-]?\\s*(.+)$`, 'im'));
@@ -594,6 +988,9 @@ function getCustomerColumns(customer, headers) {
     case 'Makro':
       return { shipIdx: findColumn(columnConfig.ship, 0), descIdx: findColumn(columnConfig.description, 1) };
     case 'Lotus':
+    case 'Big C':
+    case 'Mini Big C':
+      return { shipIdx: findColumn(columnConfig.ship, 0), descIdx: findColumn(columnConfig.description, 1) };
     default:
       return { shipIdx: findColumn(columnConfig.ship, 0), descIdx: findColumn(columnConfig.description, 1) };
   }
@@ -617,10 +1014,10 @@ function mapExcelRows(rawRows, headers, customer) {
     .filter(row => row && row.some(cell => String(cell || '').trim() !== ''))
     .map(row => {
       // อัปเดตกลุ่มคำศัพท์ (Keywords) ให้ครอบคลุมไฟล์ SO, Log, Makro, Lotus, CP All ตามที่ระบุ
-      const poNumber = findHeaderValue(row, ['ponumber', 'purchaseorderno.']);
-      const shipTo = findHeaderValue(row, ['shiptoparty', 'shiptopartyname1', 'ส่งสินค้าไปที่']);
-      const soldTo = findHeaderValue(row, ['soldtoparty']);
-      const productDesc = findHeaderValue(row, ['productdescription', 'materialdescription']);
+      const poNumber = findHeaderValue(row, ['ponumber', 'purchaseorderno.', 'customerpono.']);
+      const shipTo = findHeaderValue(row, ['shiptoparty', 'shiptopartyname1', 'shiptoname', 'shipto', 'storename', 'ส่งสินค้าไปที่']);
+      const soldTo = findHeaderValue(row, ['soldtoparty', 'soldto', 'soldtoname']);
+      const productDesc = findHeaderValue(row, ['productdescription', 'materialdescription', 'materialdesc.']);
 
       return {
         // ใช้ค่าเริ่มต้นจาก column mapping หรือถ้าหาไม่เจอให้ดึงจาก dynamic search
@@ -862,7 +1259,10 @@ export default function PoChecker() {
       const pdfDocs = [];
       for (const file of pdfFiles) {
         const buf = await file.arrayBuffer();
-        pdfDocs.push(await pdfjsLib.getDocument({ data: buf }).promise);
+        pdfDocs.push(await pdfjsLib.getDocument({
+          data: buf,
+          wasmUrl: '/pdfjs/wasm/',
+        }).promise);
       }
       const total = pdfDocs.reduce((pageCount, pdfDoc) => pageCount + pdfDoc.numPages, 0);
 
@@ -880,39 +1280,80 @@ export default function PoChecker() {
           setStatus({ active: true, text: `กำลังอ่านข้อความหน้า ${pageNumber} จาก ${total}…`, current: pageNumber, total });
           const page = await pdfDoc.getPage(p);
 
-          const viewport = page.getViewport({ scale: PREVIEW_SCALE });
-          const canvas = document.createElement('canvas');
-          canvas.width = viewport.width; canvas.height = viewport.height;
-          await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
-          const thumbDataUrl = canvas.toDataURL('image/png');
+          // 🎯 1. คำนวณขนาด (Scale) แบบฉลาด ไม่ให้ Canvas แตกหรือกินแรมจนค้าง
+          const baseViewport = page.getViewport({ scale: 1.0 });
+          const previewScale = Math.min(PREVIEW_SCALE, 1200 / baseViewport.width);
+          const ocrScale = Math.min(OCR_SCALE, 2800 / baseViewport.width);
 
           const textContent = await page.getTextContent();
           let rawText = textContent.items.map(i => i.str).join(' ').trim();
           let source = 'text-layer';
           let ocrConfidence = null;
+          let thumbDataUrl = '';
 
           if (rawText.length < 8) {
+            // ------ กรณีไฟล์ภาพสแกน (Mini Big C) ------
             source = 'ocr';
             if (!tesseractWorker) {
               setStatus({ active: true, text: 'กำลังโหลดโมดูล OCR (ครั้งแรกอาจใช้เวลาสักครู่)…', current: pageNumber, total });
               tesseractWorker = await Tesseract.createWorker('tha+eng', 1);
               await tesseractWorker.setParameters({
                 tessedit_pageseg_mode: Tesseract.PSM.SPARSE_TEXT,
-                user_defined_dpi: String(Math.round(OCR_SCALE * 72)),
+                user_defined_dpi: String(Math.round(ocrScale * 72)),
                 preserve_interword_spaces: '1',
               });
             }
-            setStatus({ active: true, text: `กำลัง OCR หน้า ${pageNumber} จาก ${total} (ความละเอียดสูง)…`, current: pageNumber, total });
+            setStatus({ active: true, text: `กำลังประมวลผล ${pageNumber} จาก ${total} …`, current: pageNumber, total });
 
-            const ocrViewport = page.getViewport({ scale: OCR_SCALE });
+            const ocrViewport = page.getViewport({ scale: ocrScale });
             const ocrCanvas = document.createElement('canvas');
-            ocrCanvas.width = ocrViewport.width; ocrCanvas.height = ocrViewport.height;
-            await page.render({ canvasContext: ocrCanvas.getContext('2d'), viewport: ocrViewport }).promise;
-            preprocessForOcr(ocrCanvas);
+            ocrCanvas.width = Math.floor(ocrViewport.width);
+            ocrCanvas.height = Math.floor(ocrViewport.height);
+            const ctxOcr = ocrCanvas.getContext('2d');
 
+            const tempOcrCanvas = document.createElement('canvas');
+            tempOcrCanvas.width = ocrCanvas.width;
+            tempOcrCanvas.height = ocrCanvas.height;
+            await page.render({ canvasContext: tempOcrCanvas.getContext('2d'), viewport: ocrViewport }).promise;
+
+            ctxOcr.fillStyle = '#ffffff';
+            ctxOcr.fillRect(0, 0, ocrCanvas.width, ocrCanvas.height);
+            ctxOcr.drawImage(tempOcrCanvas, 0, 0);
+
+            const previewCanvas = document.createElement('canvas');
+            const previewScale = Math.min(1, 1200 / tempOcrCanvas.width);
+            previewCanvas.width = Math.max(1, Math.floor(tempOcrCanvas.width * previewScale));
+            previewCanvas.height = Math.max(1, Math.floor(tempOcrCanvas.height * previewScale));
+            const previewContext = previewCanvas.getContext('2d');
+            previewContext.fillStyle = '#ffffff';
+            previewContext.fillRect(0, 0, previewCanvas.width, previewCanvas.height);
+            previewContext.imageSmoothingEnabled = true;
+            previewContext.imageSmoothingQuality = 'high';
+            previewContext.drawImage(tempOcrCanvas, 0, 0, previewCanvas.width, previewCanvas.height);
+            thumbDataUrl = previewCanvas.toDataURL('image/png');
+
+            preprocessForOcr(ocrCanvas);
             const { data } = await tesseractWorker.recognize(ocrCanvas);
             rawText = data.text.trim();
             ocrConfidence = data.confidence;
+          } else {
+            // ------ กรณีไฟล์ PDF ปกติ ------
+            const viewport = page.getViewport({ scale: previewScale });
+            const canvas = document.createElement('canvas');
+            canvas.width = Math.floor(viewport.width);
+            canvas.height = Math.floor(viewport.height);
+            const ctxPreview = canvas.getContext('2d');
+
+            const tempPreviewCanvas = document.createElement('canvas');
+            tempPreviewCanvas.width = canvas.width;
+            tempPreviewCanvas.height = canvas.height;
+            await page.render({ canvasContext: tempPreviewCanvas.getContext('2d'), viewport }).promise;
+
+            ctxPreview.fillStyle = '#ffffff';
+            ctxPreview.fillRect(0, 0, canvas.width, canvas.height);
+            ctxPreview.drawImage(tempPreviewCanvas, 0, 0);
+
+            thumbDataUrl = canvas.toDataURL('image/png');
           }
 
           const addressText = extractPdfAddressText(rawText, customer);
@@ -1009,7 +1450,12 @@ export default function PoChecker() {
   };
   const sources = uniqueInOrder(pageResults.map(result => result.pdfSource));
   const sites = uniqueInOrder(pageResults.map(result => result.pdfDestination));
-  const availableItems = uniqueInOrder(pageResults.flatMap(result => result.pdfItems));
+  const getItemsForSites = (selectedSiteValues) => uniqueInOrder(
+    pageResults
+      .filter(result => selectedSiteValues.length === 0 || selectedSiteValues.includes(result.pdfDestination))
+      .flatMap(result => result.pdfItems)
+  );
+  const availableItems = getItemsForSites(selectedSites);
   const filteredResults = getFilteredResults();
   const totalResultPages = Math.max(1, Math.ceil(filteredResults.length / RESULTS_PER_PAGE));
   const currentResultsPage = Math.min(resultsPage, totalResultPages);
@@ -1031,26 +1477,66 @@ export default function PoChecker() {
     </div>
   ) : null;
 
-  // --- Excel Filter Logic ---
+  // --- Excel Filter Logic แบบเชื่อมโยงกัน (Google Sheets Style) ---
   const handleExcelFilterChange = (column, newSelected) => {
     setExcelFilters(prev => ({ ...prev, [column]: newSelected }));
   };
 
-  const excelOptions = {
-    ponumber: uniqueInOrder(excelRows.map(r => r.ponumber)),
-    shipToParty: uniqueInOrder(excelRows.map(r => r.shipToParty)),
-    soldToParty: uniqueInOrder(excelRows.map(r => r.soldToParty)),
-    productdescription: uniqueInOrder(excelRows.map(r => r.productdescription))
+  // ฟังก์ชันช่วยหาตัวเลือกที่เหลืออยู่ โดยจำลองการกรองจากฟิลเตอร์ "ตัวอื่น"
+  const getAvailableOptions = (columnKey) => {
+    // ต้องเอารายการที่ "กำลังแสดงอยู่" มาให้เลือก แต่อย่าตัดรายการของตัวเองที่ถูกเลือกไปแล้วทิ้ง
+    const availableRows = excelRows.filter(row => {
+      const checkFilter = (key, rowValue) =>
+        key === columnKey || excelFilters[key].length === 0 || excelFilters[key].includes(rowValue);
+
+      return (
+        checkFilter('ponumber', row.ponumber) &&
+        checkFilter('shipToParty', row.shipToParty) &&
+        checkFilter('soldToParty', row.soldToParty) &&
+        checkFilter('productdescription', row.productdescription)
+      );
+    });
+    return uniqueInOrder(availableRows.map(r => r[columnKey]));
   };
 
-  const filteredExcelRows = excelRows.filter(row => {
-    return (
-      (excelFilters.ponumber.length === 0 || excelFilters.ponumber.includes(row.ponumber)) &&
-      (excelFilters.shipToParty.length === 0 || excelFilters.shipToParty.includes(row.shipToParty)) &&
-      (excelFilters.soldToParty.length === 0 || excelFilters.soldToParty.includes(row.soldToParty)) &&
-      (excelFilters.productdescription.length === 0 || excelFilters.productdescription.includes(row.productdescription))
-    );
-  });
+  // ดึงรายการตัวเลือกแบบอัปเดตตามสถานะ (Dynamic Options)
+  const excelOptions = useMemo(() => ({
+    ponumber: getAvailableOptions('ponumber'),
+    shipToParty: getAvailableOptions('shipToParty'),
+    soldToParty: getAvailableOptions('soldToParty'),
+    productdescription: getAvailableOptions('productdescription')
+  }), [excelRows, excelFilters]);
+
+  const filteredExcelRows = useMemo(() => {
+    return excelRows.filter(row => {
+      return (
+        (excelFilters.ponumber.length === 0 || excelFilters.ponumber.includes(row.ponumber)) &&
+        (excelFilters.shipToParty.length === 0 || excelFilters.shipToParty.includes(row.shipToParty)) &&
+        (excelFilters.soldToParty.length === 0 || excelFilters.soldToParty.includes(row.soldToParty)) &&
+        (excelFilters.productdescription.length === 0 || excelFilters.productdescription.includes(row.productdescription))
+      );
+    });
+  }, [excelRows, excelFilters]);
+
+  function formatPageRange(pages) {
+    if (!pages || !pages.length) return '';
+    const sorted = [...new Set(pages)].sort((a, b) => a - b);
+    const ranges = [];
+    let start = sorted[0];
+    let end = sorted[0];
+
+    for (let i = 1; i < sorted.length; i++) {
+      if (sorted[i] === end + 1) {
+        end = sorted[i];
+      } else {
+        ranges.push(start === end ? `${start}` : `${start}-${end}`);
+        start = sorted[i];
+        end = sorted[i];
+      }
+    }
+    ranges.push(start === end ? `${start}` : `${start}-${end}`);
+    return ranges.join(', ');
+  }
 
   return (
     <div className="po-container">
@@ -1114,7 +1600,7 @@ export default function PoChecker() {
             )}
             <label className="uploadLabel">
               <div className="icon">
-                <svg width="30" height="30"  viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><line x1="3" y1="9" x2="21" y2="9" /><line x1="9" y1="21" x2="9" y2="9" /></svg>
+                <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><line x1="3" y1="9" x2="21" y2="9" /><line x1="9" y1="21" x2="9" y2="9" /></svg>
               </div>
               <div className="meta">
                 <div className="label">ไฟล์ Excel (ship / description)</div>
@@ -1133,6 +1619,8 @@ export default function PoChecker() {
               <option value="CJ Express">CJ Express</option>
               <option value="Makro">Makro</option>
               <option value="CP All">CP All</option>
+              <option value="Big C">Big C</option>
+              <option value="Mini Big C">Mini Big C</option>
             </Select>
           </div>
 
@@ -1155,7 +1643,12 @@ export default function PoChecker() {
             label="ปลายทางจาก PDF"
             options={sites}
             selected={selectedSites}
-            onChange={(values) => { setSelectedSites(values); setResultsPage(1); }}
+            onChange={(values) => {
+              setSelectedSites(values);
+              const allowedItems = new Set(getItemsForSites(values));
+              setSelectedItems(current => current.filter(item => allowedItems.has(item)));
+              setResultsPage(1);
+            }}
             disabled={!pageResults.length}
             hint="เรียงตามลำดับที่พบใน PDF"
           />
@@ -1257,8 +1750,8 @@ export default function PoChecker() {
                                 aria-label={`เลือก PO ${r.pdfOrderNumber} สำหรับพิมพ์`}
                               />
                               <span className="mono pageNumber">
-                                หน้า {r.pages.join(', ')}
-                              </span>                            </td>
+                                หน้า {formatPageRange(r.pages)}
+                              </span>                         </td>
                             <td className="addrBefore dataCell">
                               {r.pdfOrderNumber || ORDER_NUMBER_NOT_FOUND}
                             </td>
@@ -1360,8 +1853,8 @@ export default function PoChecker() {
                   {filteredResults.map(result => (
                     <option key={result.id} value={result.id}>
                       {result.pdfOrderNumber !== ORDER_NUMBER_NOT_FOUND
-                        ? `PO: ${result.pdfOrderNumber} (หน้า ${result.pages.join(', ')})`
-                        : `หน้า ${result.pages[0]}`}
+                        ? `PO: ${result.pdfOrderNumber} (หน้า ${formatPageRange(result.pages)})`
+                        : `หน้า ${formatPageRange(result.pages)}`}
                     </option>
                   ))}
                 </Select>
@@ -1387,13 +1880,21 @@ export default function PoChecker() {
                         <span className="previewPageNumber">
                           หน้า {activeSelectedPage.pages[idx]}
                         </span>
-                        <img className={`previewImage previewZoom${Math.round(previewZoom * 100)}`} src={thumb} alt={`Page ${activeSelectedPage.pages[idx]}`} />
+                        <img
+                          className={`previewImage previewZoom${Math.round(previewZoom * 100)}`}
+                          src={thumb}
+                          alt={`Page ${activeSelectedPage.pages[idx]}`}
+                          style={{ width: `${previewZoom * 100}%`, height: 'auto', display: 'block', margin: '0 auto' }}
+                        />
                       </div>
                     ))}
                   </div>
                   <div className="previewDetail">
                     <dl>
-                      <dt>หน้า</dt><dd className="mono pageDetailValue">{activeSelectedPage.pages.join(', ')} / {filteredResults.length} PO</dd>
+                      <dt>หน้า</dt><dt>หน้า</dt>
+                      <dd className="mono pageDetailValue">
+                        {formatPageRange(activeSelectedPage.pages)} / {filteredResults.length} PO
+                      </dd>
                       <dt>แหล่งข้อความ</dt>
                       <dd>
                         {activeSelectedPage.source === 'text-layer' ? 'ข้อความในไฟล์ PDF' : 'OCR (ไม่พบชั้นข้อความ)'}

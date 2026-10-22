@@ -1198,8 +1198,7 @@ input:focus-visible {
   background: var(--stamp-amber-bg);
 }
 
-.comparisonColumn,
-.comparisonCell {
+.comparisonColumn{
   text-align: center !important;
 }
 
@@ -1301,7 +1300,7 @@ input:focus-visible {
 }
 
 .tableFilterDropdown {
-  position: relative;
+  /* position: relative; */
   display: inline-block;
 }
 

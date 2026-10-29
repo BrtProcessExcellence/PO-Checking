@@ -6,9 +6,13 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint app components lib auth.js next.config.ts eslint.config.mjs playwright.config.js tests",
+    "test": "node --test",
+    "test:e2e": "playwright test",
+    "test:qa": "npm run test && npm run test:e2e"
   },
   "dependencies": {
+    "@deemlol/next-icons": "^0.2.7",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.48.0",
@@ -22,6 +26,7 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@playwright/test": "^1.64.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",

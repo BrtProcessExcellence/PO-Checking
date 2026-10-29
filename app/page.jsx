@@ -9,6 +9,7 @@ import { Button } from '../components/ui/button';
 import { Card } from '../components/ui/card';
 import { Checkbox } from '../components/ui/checkbox';
 import { Select } from '../components/ui/select';
+import { Check, X } from "@deemlol/next-icons"
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
 
@@ -1516,9 +1517,7 @@ export default function PoChecker() {
     setExcelFilters(prev => ({ ...prev, [column]: newSelected }));
   };
 
-  // ฟังก์ชันช่วยหาตัวเลือกที่เหลืออยู่ โดยจำลองการกรองจากฟิลเตอร์ "ตัวอื่น"
   const getAvailableOptions = (columnKey) => {
-    // ต้องเอารายการที่ "กำลังแสดงอยู่" มาให้เลือก แต่อย่าตัดรายการของตัวเองที่ถูกเลือกไปแล้วทิ้ง
     const availableRows = excelRows.filter(row => {
       const checkFilter = (key, rowValue) =>
         key === columnKey || excelFilters[key].length === 0 || excelFilters[key].includes(rowValue);
@@ -1534,7 +1533,6 @@ export default function PoChecker() {
     return uniqueInOrder(availableRows.map(r => r[columnKey]));
   };
 
-  // ดึงรายการตัวเลือกแบบอัปเดตตามสถานะ (Dynamic Options)
   const excelOptions = useMemo(() => ({
     ponumber: getAvailableOptions('ponumber'),
     delivery: getAvailableOptions('delivery'),
@@ -1869,8 +1867,8 @@ export default function PoChecker() {
                                 excelRows.length === 0
                                   ? <span className="comparisonBadge comparisonBadgePdf">เฉพาะ PDF</span>
                                   : matchInExcel
-                                    ? <span className="comparisonBadge comparisonBadgeMatch">✅ ตรงกัน</span>
-                                    : <span className="comparisonBadge comparisonBadgeMissing">❌ ไม่พบ</span>
+                                    ? <span className="comparisonBadge comparisonBadgeMatch"><Check size={15} color="#407439" strokeWidth={2} />ตรงกัน</span>
+                                    : <span className="comparisonBadge comparisonBadgeMissing"><X size={15} color="#b13b3b" strokeWidth={2} />ไม่พบ</span>
                               ) : '-'}
                             </td>
                             <td className="addrBefore dataCell">{r.pdfSource || 'ไม่พบต้นทาง'}</td>
@@ -1920,8 +1918,8 @@ export default function PoChecker() {
                     ) : (
                       <tr>
                         {[
-                          { key: 'soldToParty', label: 'Sold To Party' },
                           { key: 'ponumber', label: 'PO Number' },
+                          { key: 'soldToParty', label: 'Sold To Party' },
                           ...customerTableColumns
                         ].map(column => (
                           <th key={column.key}>

@@ -1293,6 +1293,7 @@ input:focus-visible {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  width: max-content;
 }
 
 .excelDataPanel .tableEmpty {
@@ -1300,7 +1301,6 @@ input:focus-visible {
 }
 
 .tableFilterDropdown {
-  /* position: relative; */
   display: inline-block;
 }
 

@@ -1252,7 +1252,7 @@ export default function PoChecker() {
     const nextCustomer = event.target.value;
     setCustomer(nextCustomer);
     if (nextCustomer === 'Mini Big C') {
-      alert('สำหรับ Mini Big C แนะนำให้อัปโหลดและประมวลผล PDF ทีละไฟล์ เพื่อให้ทำงานได้รวดเร็วขึ้น');
+      alert('สำหรับ Mini Big C แนะนำให้อัปโหลดและประมวลผล PDF ทีละไฟล์ เพื่อให้ทำงานได้รวดเร็วขึ้น เนื่องจากเป็นไฟล์ scan จึงทำงานได้ช้ากว่าปกติ');
     }
     setSelectedSites([]);
     setSelectedSources([]);

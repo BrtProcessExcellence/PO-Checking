@@ -818,6 +818,10 @@ function uniqueInOrder(values) {
   return [...new Set(values.map(value => String(value || '').trim()).filter(Boolean))];
 }
 
+function sortThaiOptions(values) {
+  return uniqueInOrder(values).sort((a, b) => a.localeCompare(b, 'th', { numeric: true, sensitivity: 'base' }));
+}
+
 function extractMakroBranch(rawText) {
   return rawText.match(/\b\d{10,14}\b\s*(สาขา[^\n|]+)/i)?.[1]?.trim() || '';
 }
@@ -1247,6 +1251,9 @@ export default function PoChecker() {
   const handleCustomerChange = (event) => {
     const nextCustomer = event.target.value;
     setCustomer(nextCustomer);
+    if (nextCustomer === 'Mini Big C') {
+      alert('สำหรับ Mini Big C แนะนำให้อัปโหลดและประมวลผล PDF ทีละไฟล์ เพื่อให้ทำงานได้รวดเร็วขึ้น');
+    }
     setSelectedSites([]);
     setSelectedSources([]);
     setSelectedItems([]);
@@ -1483,9 +1490,9 @@ export default function PoChecker() {
       ? ids.filter(id => !filteredIds.includes(id))
       : [...new Set([...ids, ...filteredIds])]);
   };
-  const sources = uniqueInOrder(pageResults.map(result => result.pdfSource));
-  const sites = uniqueInOrder(pageResults.map(result => getResultDestination(result)));
-  const getItemsForSites = (selectedSiteValues) => uniqueInOrder(
+  const sources = sortThaiOptions(pageResults.map(result => result.pdfSource));
+  const sites = sortThaiOptions(pageResults.map(result => getResultDestination(result)));
+  const getItemsForSites = (selectedSiteValues) => sortThaiOptions(
     pageResults
       .filter(result => selectedSiteValues.length === 0 || selectedSiteValues.includes(result.pdfDestination))
       .flatMap(result => result.pdfItems)
@@ -1543,22 +1550,27 @@ export default function PoChecker() {
 
   const filteredExcelRows = useMemo(() => {
     return excelRows.filter(row => {
-      return (
+      const matchesFilters = (
         (excelFilters.ponumber.length === 0 || excelFilters.ponumber.includes(row.ponumber)) &&
         (excelFilters.delivery.length === 0 || excelFilters.delivery.includes(row.delivery)) &&
         (excelFilters.shipToParty.length === 0 || excelFilters.shipToParty.includes(row.shipToParty)) &&
         (excelFilters.soldToParty.length === 0 || excelFilters.soldToParty.includes(row.soldToParty)) &&
         (excelFilters.productdescription.length === 0 || excelFilters.productdescription.includes(row.productdescription))
       );
+      const visibleData = customer === 'NDC'
+        ? [row.date, row.province, row.destinationLocationName, row.shipToParty]
+        : [row.soldToParty, row.delivery, row.shipToParty, row.productdescription];
+
+      return matchesFilters && visibleData.some(value => String(value || '').trim() !== '');
     });
-  }, [excelRows, excelFilters]);
+  }, [excelRows, excelFilters, customer]);
 
   const customerTableColumns = [
-    ...(CUSTOMER_EXCEL_COLUMNS[customer]?.delivery ? [{ key: 'delivery', label: 'Delivery' }] : []),
+    // ...(CUSTOMER_EXCEL_COLUMNS[customer]?.delivery ? [{ key: 'delivery', label: 'Delivery' }] : []),
     ...(CUSTOMER_EXCEL_COLUMNS[customer]?.address
-      ? [{ key: 'shipToParty', label: 'Address' }]
+      ? [{ key: 'shipToParty', label: 'Ship To' }]
       : [{ key: 'shipToParty', label: 'Ship To' }]),
-    { key: 'productdescription', label: 'Product Description' }
+    { key: 'productdescription', label: 'รายการสินค้า' }
   ];
 
   function formatPageRange(pages) {

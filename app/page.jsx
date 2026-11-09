@@ -10,6 +10,7 @@ import { Card } from '../components/ui/card';
 import { Checkbox } from '../components/ui/checkbox';
 import { Select } from '../components/ui/select';
 import { Check, X } from "@deemlol/next-icons"
+import { PDFDocument } from 'pdf-lib';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
 
@@ -1405,6 +1406,7 @@ export default function PoChecker() {
           const rowData = {
             id: `page-${pageNumber}`,
             pages: [pageNumber],
+            documentIndex,
             rawText,
             source,
             ocrConfidence,
@@ -1472,9 +1474,66 @@ export default function PoChecker() {
     });
   };
 
-  const triggerPrint = (pagesList) => {
-    setPrintPagesList(sortPdfResultsByPage(pagesList));
-    setTimeout(() => window.print(), 100);
+  const triggerPrint = async (pagesList) => {
+    if (!pagesList || pagesList.length === 0 || !pdfFiles.length) return;
+
+    setStatus({ active: true, text: 'กำลังสร้างไฟล์ PDF สำหรับปริ้นต์...', current: 0, total: 100 });
+    setIsProcessing(true);
+
+    try {
+      // สร้างไฟล์ PDF เปล่าๆ ขึ้นมาใหม่ 1 ไฟล์
+      const newPdfDoc = await PDFDocument.create();
+      const sortedPages = sortPdfResultsByPage(pagesList);
+
+      for (const result of sortedPages) {
+        // หาว่าหน้านี้มาจากไฟล์ PDF ก้อนไหนที่แกอัปโหลดเข้ามา
+        const sourceFile = pdfFiles[result.documentIndex];
+        if (!sourceFile) continue;
+
+        // โหลดไฟล์ PDF ต้นฉบับนั้นขึ้นมา
+        const fileBuffer = await sourceFile.arrayBuffer();
+        const loadedPdf = await PDFDocument.load(fileBuffer);
+
+        // ดึงเฉพาะหน้ากระดาษที่ต้องการ (pdf-lib นับหน้าเริ่มจาก 0)
+        const pageIndices = result.pages.map(pageNum => pageNum - 1);
+        const copiedPages = await newPdfDoc.copyPages(loadedPdf, pageIndices);
+
+        // แปะหน้าต้นฉบับคมๆ ลงไปในไฟล์ PDF ใหม่
+        copiedPages.forEach((page) => newPdfDoc.addPage(page));
+      }
+
+      const pdfBytes = await newPdfDoc.save();
+      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+      const url = URL.createObjectURL(blob);
+
+      // 🎯 สร้าง iframe แบบล่องหน เพื่อโหลด PDF ไว้หลังฉาก
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      iframe.src = url;
+      document.body.appendChild(iframe);
+
+      // พอ PDF โหลดเสร็จปุ๊บ สั่งเด้ง Print Dialog ในหน้าปัจจุบันทันที
+      iframe.onload = () => {
+        setTimeout(() => {
+          iframe.contentWindow.focus();
+          iframe.contentWindow.print();
+
+          // ตั้งเวลาทำความสะอาด ลบ iframe ล่องหนและคืนแรมทิ้ง (เผื่อเวลาให้หน้า Print โหลด 1 นาที)
+          setTimeout(() => {
+            if (document.body.contains(iframe)) {
+              document.body.removeChild(iframe);
+              URL.revokeObjectURL(url);
+            }
+          }, 60000);
+        }, 150);
+      };
+    } catch (error) {
+      console.error('Print Error:', error);
+      alert('เกิดข้อผิดพลาดในการสร้างไฟล์ PDF สำหรับปริ้นต์');
+    } finally {
+      setStatus({ active: false, text: '', current: 0, total: 0 });
+      setIsProcessing(false);
+    }
   };
 
   const togglePrintPage = (id) => {

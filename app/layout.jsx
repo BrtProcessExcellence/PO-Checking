@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 
 export const metadata = {
   title: "PO Check",
-  description: "ระบบตรวจสอบใบสั่งซื้อสินค้ากับข้อมูลปลายทาง",
+  description: "Check purchase orders against destination details.",
   icons: {
     icon: "/po-checking-favicon.svg",
     apple: "/po-checking-favicon.svg",
@@ -22,7 +22,7 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html>
+    <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable}`}>
         {children}
       </body>

@@ -208,9 +208,9 @@ const PROVINCE_EN_ALIAS = {
 };
 const PROVINCE_ALIAS = { 'กทม': 'กรุงเทพมหานคร', 'กรุงเทพ': 'กรุงเทพมหานคร', 'อยุธยา': 'พระนครศรีอยุธยา', 'โคราช': 'นครราชสีมา' };
 const PROVINCE_KEYS = [...THAI_PROVINCES, ...Object.keys(PROVINCE_ALIAS)].sort((a, b) => b.length - a.length);
-const DEST_NOT_FOUND = 'ไม่พบจังหวัดปลายทาง';
-const SOURCE_NOT_FOUND = 'ไม่พบต้นทาง';
-const ORDER_NUMBER_NOT_FOUND = 'ไม่พบเลขที่';
+const DEST_NOT_FOUND = 'Destination not found';
+const SOURCE_NOT_FOUND = 'Source not found';
+const ORDER_NUMBER_NOT_FOUND = 'Not found';
 
 function resolveProvince(word) {
   const w = String(word || '').replace(/[ฯ.]/g, '');
@@ -1059,7 +1059,7 @@ function CheckboxDropdown({ id, label, options, selected, onChange, disabled, hi
         </summary>
         <div className="filterMenu">
           {options.length === 0 ? (
-            <span className="filterEmpty">ยังไม่มีข้อมูล</span>
+            <span className="filterEmpty">No data yet</span>
           ) : options.map(option => (
             <label className="filterOption" key={option}>
               <Checkbox checked={selected.includes(option)} disabled={disabled} onChange={() => toggleOption(option)} />
@@ -1068,8 +1068,8 @@ function CheckboxDropdown({ id, label, options, selected, onChange, disabled, hi
           ))}
           {options.length > 0 && (
             <div className="filterActions">
-              <Button size="sm" variant="outline" onClick={selectAll} disabled={disabled || options.length === 0}>เลือกทั้งหมด</Button>
-              <Button size="sm" variant="ghost" onClick={clearAll} disabled={disabled || selected.length === 0}>ล้าง</Button>
+              <Button size="sm" variant="outline" onClick={selectAll} disabled={disabled || options.length === 0}>Select All</Button>
+              <Button size="sm" variant="ghost" onClick={clearAll} disabled={disabled || selected.length === 0}>Clear</Button>
             </div>
           )}
         </div>
@@ -1079,7 +1079,7 @@ function CheckboxDropdown({ id, label, options, selected, onChange, disabled, hi
   );
 }
 
-// ================== ส่วนใหม่: ฟิลเตอร์แบบ Google Sheets ในหัวตาราง Excel ==================
+// ================== New: Google Sheets-style filters in Excel table headers ==================
 function ColumnFilterDropdown({ options, selected, onChange }) {
   const toggleOption = (option) => {
     onChange(selected.includes(option) ? selected.filter(v => v !== option) : [...selected, option]);
@@ -1095,15 +1095,15 @@ function ColumnFilterDropdown({ options, selected, onChange }) {
       </summary>
       <div className="tableFilterMenu" onClick={(e) => e.stopPropagation()}>
         <div className="tableFilterActions">
-          <button type="button" className="tableFilterSelectAll" onClick={() => onChange([...options])}>เลือกทั้งหมด</button>
-          <button type="button" className="tableFilterClear" onClick={() => onChange([])}>ล้าง</button>
+          <button type="button" className="tableFilterSelectAll" onClick={() => onChange([...options])}>Select All</button>
+          <button type="button" className="tableFilterClear" onClick={() => onChange([])}>Clear</button>
         </div>
         <div className="tableFilterOptions">
-          {options.length === 0 && <div className="tableFilterEmpty">ไม่มีข้อมูล</div>}
+          {options.length === 0 && <div className="tableFilterEmpty">No data</div>}
           {options.map((opt, idx) => (
             <label key={idx} className="tableFilterOption">
               <input type="checkbox" checked={selected.includes(opt)} onChange={() => toggleOption(opt)} />
-              <span title={opt}>{opt || '(ว่าง)'}</span>
+              <span title={opt}>{opt || '(blank)'}</span>
             </label>
           ))}
         </div>
@@ -1195,7 +1195,7 @@ export default function PoChecker() {
             reject(error);
           }
         };
-        reader.onerror = () => reject(new Error(`อ่านไฟล์ ${file.name} ไม่สำเร็จ`));
+        reader.onerror = () => reject(new Error(`Failed to read file ${file.name}`));
         reader.readAsArrayBuffer(file);
       })))).flat();
 
@@ -1206,7 +1206,7 @@ export default function PoChecker() {
       setExcelSources(currentSources => [...currentSources, ...sources]);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      alert('อ่านไฟล์ Excel ไม่สำเร็จ: ' + message);
+      alert('Unable to read the Excel file: ' + message);
     } finally {
       if ('value' in input) input.value = '';
     }
@@ -1253,7 +1253,7 @@ export default function PoChecker() {
     const nextCustomer = event.target.value;
     setCustomer(nextCustomer);
     if (nextCustomer === 'Mini Big C') {
-      alert('สำหรับ Mini Big C แนะนำให้อัปโหลดและประมวลผล PDF ทีละไฟล์ เพื่อให้ทำงานได้รวดเร็วขึ้น เนื่องจากเป็นไฟล์ scan จึงทำงานได้ช้ากว่าปกติ');
+      alert('For Mini Big C, upload and process one PDF at a time for better performance. Scanned files take longer to process.');
     }
     setSelectedSites([]);
     setSelectedSources([]);
@@ -1270,7 +1270,7 @@ export default function PoChecker() {
   const processPdf = async () => {
     if (!pdfFiles.length || isProcessing) return;
     setIsProcessing(true);
-    setStatus({ active: true, text: 'กำลังเตรียมระบบ…', current: 0, total: 0 });
+    setStatus({ active: true, text: 'Preparing...', current: 0, total: 0 });
     setPageResults([]);
     setSelectedPage(null);
     setSelectedPrintPages([]);
@@ -1299,7 +1299,7 @@ export default function PoChecker() {
 
         for (let p = 1; p <= pdfDoc.numPages; p++) {
           pageNumber += 1;
-          setStatus({ active: true, text: `กำลังอ่านข้อความหน้า ${pageNumber} จาก ${total}…`, current: pageNumber, total });
+          setStatus({ active: true, text: `Reading page ${pageNumber} of ${total}...`, current: pageNumber, total });
           const page = await pdfDoc.getPage(p);
 
           // 🎯 1. คำนวณขนาด (Scale) แบบฉลาด ไม่ให้ Canvas แตกหรือกินแรมจนค้าง
@@ -1317,7 +1317,7 @@ export default function PoChecker() {
             // ------ กรณีไฟล์ภาพสแกน (Mini Big C) ------
             source = 'ocr';
             if (!tesseractWorker) {
-              setStatus({ active: true, text: 'กำลังโหลดโมดูล OCR (ครั้งแรกอาจใช้เวลาสักครู่)…', current: pageNumber, total });
+              setStatus({ active: true, text: 'Loading the OCR module (this may take a moment the first time)...', current: pageNumber, total });
               tesseractWorker = await Tesseract.createWorker('tha+eng', 1);
               await tesseractWorker.setParameters({
                 tessedit_pageseg_mode: Tesseract.PSM.SPARSE_TEXT,
@@ -1325,7 +1325,7 @@ export default function PoChecker() {
                 preserve_interword_spaces: '1',
               });
             }
-            setStatus({ active: true, text: `กำลังประมวลผล ${pageNumber} จาก ${total} …`, current: pageNumber, total });
+            setStatus({ active: true, text: `Processing page ${pageNumber} of ${total}...`, current: pageNumber, total });
 
             const ocrViewport = page.getViewport({ scale: ocrScale });
             const ocrCanvas = document.createElement('canvas');
@@ -1431,12 +1431,12 @@ export default function PoChecker() {
     } catch (error) {
       console.error(error);
       const message = error instanceof Error ? error.message : String(error);
-      alert(`เกิดข้อผิดพลาดในการประมวลผล PDF: ${message}`);
+      alert(`An error occurred while processing the PDF: ${message}`);
     } finally {
       try {
         if (tesseractWorker) await tesseractWorker.terminate();
       } catch (cleanupError) {
-        console.error('ปิดระบบ OCR ไม่สำเร็จ', cleanupError);
+        console.error('Failed to shut down OCR', cleanupError);
       } finally {
         setStatus({ active: false, text: '', current: 0, total: 0 });
         setIsProcessing(false);
@@ -1459,7 +1459,7 @@ export default function PoChecker() {
   const getResultDestination = useCallback((result) => {
     if (customer === 'NDC') {
       const matched = findMatchedExcelRow(result.pdfOrderNumber);
-      return matched?.destinationLocationName || 'ไม่พบใน Excel';
+      return matched?.destinationLocationName || 'Not found in Excel';
     }
     return result.pdfDestination;
   }, [customer, findMatchedExcelRow]);
@@ -1477,7 +1477,7 @@ export default function PoChecker() {
   const triggerPrint = async (pagesList) => {
     if (!pagesList || pagesList.length === 0 || !pdfFiles.length) return;
 
-    setStatus({ active: true, text: 'กำลังสร้างไฟล์ PDF สำหรับปริ้นต์...', current: 0, total: 100 });
+    setStatus({ active: true, text: 'Creating a PDF for printing...', current: 0, total: 100 });
     setIsProcessing(true);
 
     try {
@@ -1506,19 +1506,16 @@ export default function PoChecker() {
       const blob = new Blob([pdfBytes], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
 
-      // 🎯 สร้าง iframe แบบล่องหน เพื่อโหลด PDF ไว้หลังฉาก
       const iframe = document.createElement('iframe');
       iframe.style.display = 'none';
       iframe.src = url;
       document.body.appendChild(iframe);
 
-      // พอ PDF โหลดเสร็จปุ๊บ สั่งเด้ง Print Dialog ในหน้าปัจจุบันทันที
       iframe.onload = () => {
         setTimeout(() => {
           iframe.contentWindow.focus();
           iframe.contentWindow.print();
 
-          // ตั้งเวลาทำความสะอาด ลบ iframe ล่องหนและคืนแรมทิ้ง (เผื่อเวลาให้หน้า Print โหลด 1 นาที)
           setTimeout(() => {
             if (document.body.contains(iframe)) {
               document.body.removeChild(iframe);
@@ -1529,7 +1526,7 @@ export default function PoChecker() {
       };
     } catch (error) {
       console.error('Print Error:', error);
-      alert('เกิดข้อผิดพลาดในการสร้างไฟล์ PDF สำหรับปริ้นต์');
+      alert('An error occurred while creating the PDF for printing.');
     } finally {
       setStatus({ active: false, text: '', current: 0, total: 0 });
       setIsProcessing(false);
@@ -1571,10 +1568,10 @@ export default function PoChecker() {
   };
 
   const paginationControls = filteredResults.length > RESULTS_PER_PAGE ? (
-    <div className="pagination paginationCompact" aria-label="เลือกหน้าผลการตรวจสอบ">
-      <Button variant="outline" size="sm" disabled={currentResultsPage === 1} onClick={() => setResultsPage(currentResultsPage - 1)}>ก่อนหน้า</Button>
-      <span className="paginationCurrent">หน้า {currentResultsPage} / {totalResultPages}</span>
-      <Button variant="outline" size="sm" disabled={currentResultsPage === totalResultPages} onClick={() => setResultsPage(currentResultsPage + 1)}>ถัดไป</Button>
+    <div className="pagination paginationCompact" aria-label="Choose a results page">
+      <Button variant="outline" size="sm" disabled={currentResultsPage === 1} onClick={() => setResultsPage(currentResultsPage - 1)}>Previous</Button>
+      <span className="paginationCurrent">Page {currentResultsPage} / {totalResultPages}</span>
+      <Button variant="outline" size="sm" disabled={currentResultsPage === totalResultPages} onClick={() => setResultsPage(currentResultsPage + 1)}>Next</Button>
     </div>
   ) : null;
 
@@ -1629,7 +1626,7 @@ export default function PoChecker() {
     ...(CUSTOMER_EXCEL_COLUMNS[customer]?.address
       ? [{ key: 'shipToParty', label: 'Ship To' }]
       : [{ key: 'shipToParty', label: 'Ship To' }]),
-    { key: 'productdescription', label: 'รายการสินค้า' }
+    { key: 'productdescription', label: 'Product Description' }
   ];
 
   function formatPageRange(pages) {
@@ -1659,8 +1656,8 @@ export default function PoChecker() {
           <div className="brandLine">
             <div className="badge">Transport PO Sorting Tool</div>
           </div>
-          <h1 className="po-title">ระบบคัดแยกเอกสารใบสั่งซื้อสินค้า</h1>
-          <p>อัปโหลด PDF ใบสั่งซื้อสินค้า และไฟล์ Excel รายการสินค้า/ที่อยู่ เพื่อดูข้อมูลแยกตามไฟล์</p>
+          <h1 className="po-title">Purchase Order Document Sorting</h1>
+          <p>Upload purchase order PDFs and an Excel file with item and address details to view results by file.</p>
         </div>
         <img className="brandIcon" src="/Brf Logos 2.png" alt="" aria-hidden="true" />
       </header>
@@ -1679,7 +1676,7 @@ export default function PoChecker() {
                 onClick={clearPdfFiles}
                 disabled={isProcessing}
                 className="clearFilesButton"
-                title="ล้างไฟล์ PDF"
+                title="Clear PDF files"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
               </button>
@@ -1689,8 +1686,8 @@ export default function PoChecker() {
                 <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" /><polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" /><line x1="16" y1="17" x2="8" y2="17" /><polyline points="10 9 9 9 8 9" /></svg>
               </div>
               <div className="meta">
-                <div className="label">ไฟล์ PDF ใบสั่งซื้อสินค้า (เลือกได้หลายไฟล์)</div>
-                <div className={`file ${isPdfDragging ? 'dragging' : ''}`}>{pdfFiles.length ? `${pdfFiles.length} ไฟล์โหลดแล้ว` : 'ลากไฟล์มาวาง หรือ คลิกเพื่อเลือก'}</div>
+                <div className="label">Purchase Order PDF Files (multiple files allowed)</div>
+                <div className={`file ${isPdfDragging ? 'dragging' : ''}`}>{pdfFiles.length ? `${pdfFiles.length} file(s) loaded` : 'Drop files here or click to browse'}</div>
               </div>
               <input className="hiddenFileInput" type="file" accept="application/pdf" multiple onChange={handlePdfChange} disabled={isProcessing} />
             </label>
@@ -1707,7 +1704,7 @@ export default function PoChecker() {
                 type="button"
                 onClick={clearExcelFiles}
                 className="clearFilesButton"
-                title="ล้างไฟล์ Excel"
+                title="Clear Excel files"
               >
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
               </button>
@@ -1717,8 +1714,8 @@ export default function PoChecker() {
                 <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><line x1="3" y1="9" x2="21" y2="9" /><line x1="9" y1="21" x2="9" y2="9" /></svg>
               </div>
               <div className="meta">
-                <div className="label">ไฟล์ Excel (ship / description)</div>
-                <div className={`file ${isExcelDragging ? 'dragging' : ''}`}>{excelSources.length ? `${excelRows.length} แถวจาก ${excelSources.length} ไฟล์โหลดแล้ว` : 'ลากไฟล์มาวาง หรือ คลิกเพื่อเลือก'}</div>
+                <div className="label">Excel File (ship / description)</div>
+                <div className={`file ${isExcelDragging ? 'dragging' : ''}`}>{excelSources.length ? `${excelRows.length} row(s) from ${excelSources.length} file(s) loaded` : 'Drop files here or click to browse'}</div>
               </div>
               <input className="hiddenFileInput" type="file" accept=".xlsx,.xls,.csv" multiple onChange={handleExcelChange} />
             </label>
@@ -1726,74 +1723,87 @@ export default function PoChecker() {
         </section>
 
         <Card className="toolbar mainToolbar">
-          <div className="field">
-            <label htmlFor="customer-filter" className="customerLabel">Customer</label>
-            <Select id="customer-filter" value={customer} onChange={handleCustomerChange} disabled={isProcessing}>
-              <option value="Lotus">Lotus</option>
-              <option value="CJ Express">CJ Express</option>
-              <option value="Makro">Makro</option>
-              <option value="NDC">NDC</option>
-              <option value="CP All">CP All</option>
-              <option value="Big C">Big C</option>
-              <option value="Mini Big C">Mini Big C</option>
-            </Select>
+          <div className="toolbarControls">
+            <div className="field">
+              <label htmlFor="customer-filter" className="customerLabel">Customer</label>
+              <Select id="customer-filter" value={customer} onChange={handleCustomerChange} disabled={isProcessing}>
+                <option value="Lotus">Lotus</option>
+                <option value="CJ Express">CJ Express</option>
+                <option value="Makro">Makro</option>
+                <option value="NDC">NDC</option>
+                <option value="CP All">CP All</option>
+                <option value="Big C">Big C</option>
+                <option value="Mini Big C">Mini Big C</option>
+              </Select>
+            </div>
+
+            <Button className="processButton" onClick={processPdf} disabled={!pdfFiles.length || isProcessing}>
+              {isProcessing ? 'Processing...' : 'Process PDF'}
+            </Button>
           </div>
 
-          <Button className="processButton" onClick={processPdf} disabled={!pdfFiles.length || isProcessing}>
-            {isProcessing ? 'กำลังประมวลผล...' : 'ประมวลผล PDF'}
-          </Button>
+          <section className="filtersSection" aria-labelledby="filters-heading">
+            <div className="filtersHeading">
+              <div>
+                <span className="filtersEyebrow">REFINE RESULTS</span>
+                <h2 id="filters-heading">Filter Results</h2>
+              </div>
+              <p>Select values to narrow down the pages you want to review.</p>
+            </div>
+            <div className="filtersGrid">
+              <CheckboxDropdown
+                id="source-filter"
+                label="Source from PDF"
+                options={sources}
+                selected={selectedSources}
+                onChange={(values) => { setSelectedSources(values); setResultsPage(1); }}
+                disabled={!pageResults.length}
+                hint="Sorted in the order found in the PDF"
+              />
 
-          <CheckboxDropdown
-            id="source-filter"
-            label="ต้นทางจาก PDF"
-            options={sources}
-            selected={selectedSources}
-            onChange={(values) => { setSelectedSources(values); setResultsPage(1); }}
-            disabled={!pageResults.length}
-            hint="เรียงตามลำดับที่พบใน PDF"
-          />
+              <CheckboxDropdown
+                id="site-filter"
+                label="Destination from PDF"
+                options={sites}
+                selected={selectedSites}
+                onChange={(values) => {
+                  setSelectedSites(values);
+                  const allowedItems = new Set(getItemsForSites(values));
+                  setSelectedItems(current => current.filter(item => allowedItems.has(item)));
+                  setResultsPage(1);
+                }}
+                disabled={!pageResults.length}
+                hint="Sorted in the order found in the PDF"
+              />
 
-          <CheckboxDropdown
-            id="site-filter"
-            label="ปลายทางจาก PDF"
-            options={sites}
-            selected={selectedSites}
-            onChange={(values) => {
-              setSelectedSites(values);
-              const allowedItems = new Set(getItemsForSites(values));
-              setSelectedItems(current => current.filter(item => allowedItems.has(item)));
-              setResultsPage(1);
-            }}
-            disabled={!pageResults.length}
-            hint="เรียงตามลำดับที่พบใน PDF"
-          />
+              <CheckboxDropdown
+                id="item-filter"
+                label="Product Description"
+                options={availableItems}
+                selected={selectedItems}
+                onChange={(values) => { setSelectedItems(values); setResultsPage(1); }}
+                disabled={!pageResults.length}
+                hint="Sorted in the order found in the PDF"
+              />
+            </div>
+          </section>
 
-          <CheckboxDropdown
-            id="item-filter"
-            label="รายการสินค้า"
-            options={availableItems}
-            selected={selectedItems}
-            onChange={(values) => { setSelectedItems(values); setResultsPage(1); }}
-            disabled={!pageResults.length}
-            hint="เรียงตามลำดับที่พบใน PDF"
-          />
+          <div className="toolbarFooter">
+            <div className="pageIndicator">
+              {pageResults.length === 0 ? 'No data yet' :
+                selectedSources.length || selectedSites.length || selectedItems.length ? `Showing ${filteredResults.length} of ${pageResults.length} pages` : `${pageResults.length} pages total`}
+            </div>
 
-          <div className="spacer"></div>
-
-          <div className="pageIndicator">
-            {pageResults.length === 0 ? 'ยังไม่มีข้อมูล' :
-              selectedSources.length || selectedSites.length || selectedItems.length ? `พบ ${filteredResults.length} จาก ${pageResults.length} หน้า` : `ทั้งหมด ${pageResults.length} หน้า`}
-          </div>
-
-          <Button
-            variant="outline"
-            disabled={!selectedPrintResults.length}
-            onClick={() => triggerPrint(selectedPrintResults)}
-            className="printButton"
-          >
+            <Button
+              variant="outline"
+              disabled={!selectedPrintResults.length}
+              onClick={() => triggerPrint(selectedPrintResults)}
+              className="printButton"
+            >
             <svg className="buttonIcon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9" /><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" /><rect x="6" y="14" width="12" height="8" /></svg>
-            พิมพ์หน้าที่เลือก{selectedPrintResults.length > 0 ? ` (${selectedPrintResults.length})` : ''}
-          </Button>
+              Print Selected Pages{selectedPrintResults.length > 0 ? ` (${selectedPrintResults.length})` : ''}
+            </Button>
+          </div>
         </Card>
 
         {status.active && (
@@ -1803,7 +1813,7 @@ export default function PoChecker() {
               <span className="statusCount">{status.total > 0 ? `${status.current}/${status.total}` : ''}</span>
             </div>
             <div className="progressTrack">
-              <progress className="progressFill" value={status.current} max={status.total || 1} aria-label="ความคืบหน้าการประมวลผล" />
+              <progress className="progressFill" value={status.current} max={status.total || 1} aria-label="Processing progress" />
             </div>
           </div>
         )}
@@ -1812,7 +1822,7 @@ export default function PoChecker() {
           <div className='panelLeft'>
             <Card className="panel">
               <h2 className="sectionHeading">
-                ผลการตรวจสอบรายหน้า <span className="count">{pageResults.length > 0 ? `(${filteredResults.length} หน้า)` : ''}</span>
+                Page-by-Page Results <span className="count">{pageResults.length > 0 ? `(${filteredResults.length} pages)` : ''}</span>
               </h2>
 
               {paginationControls}
@@ -1827,7 +1837,7 @@ export default function PoChecker() {
                             checked={allFilteredPagesSelected}
                             onChange={toggleFilteredPrintPages}
                             disabled={!filteredResults.length}
-                            aria-label="เลือกทุกหน้าที่แสดง"
+                            aria-label="Select all displayed pages"
                           />
                         </th>
                         <th>Date</th>
@@ -1842,13 +1852,13 @@ export default function PoChecker() {
                             checked={allFilteredPagesSelected}
                             onChange={toggleFilteredPrintPages}
                             disabled={!filteredResults.length}
-                            aria-label="เลือกทุกหน้าที่แสดง"
+                            aria-label="Select all displayed pages"
                           />
                         </th>
                         <th>PO Number</th>
-                        <th className="comparisonColumn">เปรียบเทียบกับ Excel</th>
-                        <th>ต้นทางจาก PDF</th>
-                        <th>ปลายทางจาก PDF</th>
+                        <th className="comparisonColumn">Compare with Excel</th>
+                        <th>Source from PDF</th>
+                        <th>Destination from PDF</th>
                       </tr>
                     )}
                   </thead>
@@ -1856,13 +1866,13 @@ export default function PoChecker() {
                     {pageResults.length === 0 ? (
                       <tr>
                         <td colSpan="5" className="tableEmpty">
-                          อัปโหลดไฟล์แล้วกด “ประมวลผล PDF”
+                          Upload files and click &quot;Process PDF&quot;
                         </td>
                       </tr>
                     ) : filteredResults.length === 0 ? (
                       <tr>
                         <td colSpan="5" className="tableEmpty tableEmptyWarning">
-                          ไม่พบหน้าที่ตรงกับตัวกรองนี้
+                          No pages match these filters.
                         </td>
                       </tr>
                     ) : (
@@ -1889,7 +1899,7 @@ export default function PoChecker() {
                                   onClick={(event) => event.stopPropagation()}
                                 />
                                 <span className="mono pageNumber">
-                                  หน้า {formatPageRange(r.pages)}
+                                  Page {formatPageRange(r.pages)}
                                 </span>
                               </td>
                               <td className="dataCell">{matchedRow?.date || '—'}</td>
@@ -1905,7 +1915,7 @@ export default function PoChecker() {
                                   </span>
                                 ) : (
                                   <span className="destinationMissing">
-                                    {excelRows.length === 0 ? 'รออัปโหลด Excel' : (!hasPo ? '⚠️ ไม่พบเลขที่ใน PDF' : '❌ ไม่พบ PO ใน Excel')}
+                                    {excelRows.length === 0 ? 'Waiting for Excel upload' : (!hasPo ? '⚠️ PO number not found in PDF' : '❌ PO not found in Excel')}
                                   </span>
                                 )}
                               </td>
@@ -1924,10 +1934,10 @@ export default function PoChecker() {
                                 checked={isPrintSelected}
                                 onChange={() => togglePrintPage(r.id)}
                                 onClick={(event) => event.stopPropagation()}
-                                aria-label={`เลือก PO ${r.pdfOrderNumber} สำหรับพิมพ์`}
+                                aria-label={`Select PO ${r.pdfOrderNumber} to print`}
                               />
                               <span className="mono pageNumber">
-                                หน้า {formatPageRange(r.pages)}
+                                Page {formatPageRange(r.pages)}
                               </span>
                             </td>
                             <td className="addrBefore dataCell">
@@ -1936,15 +1946,15 @@ export default function PoChecker() {
                             <td className="comparisonCell">
                               {hasPo ? (
                                 excelRows.length === 0
-                                  ? <span className="comparisonBadge comparisonBadgePdf">เฉพาะ PDF</span>
+                                  ? <span className="comparisonBadge comparisonBadgePdf">PDF only</span>
                                   : matchInExcel
-                                    ? <span className="comparisonBadge comparisonBadgeMatch"><Check size={15} color="#407439" strokeWidth={2} />ตรงกัน</span>
-                                    : <span className="comparisonBadge comparisonBadgeMissing"><X size={15} color="#b13b3b" strokeWidth={2} />ไม่พบ</span>
+                                    ? <span className="comparisonBadge comparisonBadgeMatch"><Check size={15} color="#407439" strokeWidth={2} />Match</span>
+                                    : <span className="comparisonBadge comparisonBadgeMissing"><X size={15} color="#b13b3b" strokeWidth={2} />Not found</span>
                               ) : '-'}
                             </td>
-                            <td className="addrBefore dataCell">{r.pdfSource || 'ไม่พบต้นทาง'}</td>
+                            <td className="addrBefore dataCell">{r.pdfSource || SOURCE_NOT_FOUND}</td>
                             <td className="addrBefore dataCell">
-                              {r.pdfDestination && r.pdfDestination !== 'ไม่พบจังหวัดปลายทาง' ? (
+                              {r.pdfDestination && r.pdfDestination !== DEST_NOT_FOUND ? (
                                 <span className="destinationValue">
                                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--teal)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>
                                   {r.pdfDestination}
@@ -1964,7 +1974,7 @@ export default function PoChecker() {
             </Card>
             <Card className="panel excelDataPanel">
               <h2 className="sectionHeading">
-                ข้อมูลจาก Excel <span className="count">{filteredExcelRows.length > 0 ? `(${filteredExcelRows.length} แถว)` : ''}</span>
+                Excel Data <span className="count">{filteredExcelRows.length > 0 ? `(${filteredExcelRows.length} rows)` : ''}</span>
               </h2>
               <div className="tableScroll">
                 <table>
@@ -2009,7 +2019,7 @@ export default function PoChecker() {
                   </thead>
                   <tbody>
                     {!filteredExcelRows.length ? (
-                      <tr><td colSpan={customer === 'NDC' ? 4 : customerTableColumns.length + 2} className="tableEmpty">{excelRows.length > 0 ? 'ไม่พบข้อมูลที่ตรงกับตัวกรอง' : 'อัปโหลดไฟล์ Excel เพื่อแสดงข้อมูล'}</td></tr>
+                      <tr><td colSpan={customer === 'NDC' ? 4 : customerTableColumns.length + 2} className="tableEmpty">{excelRows.length > 0 ? 'No data matches these filters.' : 'Upload an Excel file to display data.'}</td></tr>
                     ) : (
                       filteredExcelRows.map((row, index) => {
                         if (customer === 'NDC') {
@@ -2041,38 +2051,38 @@ export default function PoChecker() {
           </div>
 
           <Card className="panel previewPanel">
-            <h2 className="sectionHeading">ตัวอย่างหน้าเอกสาร</h2>
+            <h2 className="sectionHeading">Document Preview</h2>
             <div className="previewBody">
-              <div className="previewControls" aria-label="ควบคุมตัวอย่างเอกสาร">
-                <Button variant="outline" size="icon" disabled={selectedResultIndex <= 0} onClick={() => selectPreviewPage(selectedResultIndex - 1)} aria-label="หน้าก่อนหน้า">‹</Button>
+              <div className="previewControls" aria-label="Document preview controls">
+                <Button variant="outline" size="icon" disabled={selectedResultIndex <= 0} onClick={() => selectPreviewPage(selectedResultIndex - 1)} aria-label="Previous page">‹</Button>
                 <Select
                   value={activeSelectedPage?.id || ''}
                   onChange={(event) => selectPreviewPage(filteredResults.findIndex(result => result.id === event.target.value))}
                   disabled={!filteredResults.length}
-                  aria-label="เลือกหน้าเอกสาร"
+                  aria-label="Select a document page"
                 >
-                  {!filteredResults.length && <option value="">ยังไม่มีหน้า</option>}
+                  {!filteredResults.length && <option value="">No pages yet</option>}
                   {filteredResults.map(result => (
                     <option key={result.id} value={result.id}>
                       {result.pdfOrderNumber !== ORDER_NUMBER_NOT_FOUND
-                        ? `PO: ${result.pdfOrderNumber} (หน้า ${formatPageRange(result.pages)})`
-                        : `หน้า ${formatPageRange(result.pages)}`}
+                        ? `PO: ${result.pdfOrderNumber} (Page ${formatPageRange(result.pages)})`
+                        : `Page ${formatPageRange(result.pages)}`}
                     </option>
                   ))}
                 </Select>
-                <Button variant="outline" size="icon" disabled={selectedResultIndex < 0 || selectedResultIndex >= filteredResults.length - 1} onClick={() => selectPreviewPage(selectedResultIndex + 1)} aria-label="หน้าถัดไป">›</Button>
+                <Button variant="outline" size="icon" disabled={selectedResultIndex < 0 || selectedResultIndex >= filteredResults.length - 1} onClick={() => selectPreviewPage(selectedResultIndex + 1)} aria-label="Next page">›</Button>
                 <div className="previewDivider"></div>
 
-                <Button variant="outline" size="icon" disabled={!activeSelectedPage || previewZoom <= 0.5} onClick={() => setPreviewZoom(value => Math.max(0.5, value - 0.25))} aria-label="ซูมออก">−</Button>
+                <Button variant="outline" size="icon" disabled={!activeSelectedPage || previewZoom <= 0.5} onClick={() => setPreviewZoom(value => Math.max(0.5, value - 0.25))} aria-label="Zoom out">−</Button>
                 <span className="zoomValue">{Math.round(previewZoom * 100)}%</span>
-                <Button variant="outline" size="icon" disabled={!activeSelectedPage || previewZoom >= 2} onClick={() => setPreviewZoom(value => Math.min(2, value + 0.25))} aria-label="ซูมเข้า">+</Button>
-                <Button variant="ghost" size="sm" disabled={!activeSelectedPage || previewZoom === 1} onClick={() => setPreviewZoom(1)}>รีเซ็ต</Button>
+                <Button variant="outline" size="icon" disabled={!activeSelectedPage || previewZoom >= 2} onClick={() => setPreviewZoom(value => Math.min(2, value + 0.25))} aria-label="Zoom in">+</Button>
+                <Button variant="ghost" size="sm" disabled={!activeSelectedPage || previewZoom === 1} onClick={() => setPreviewZoom(1)}>Reset</Button>
               </div>
               {!activeSelectedPage ? (
                 <div className="previewEmpty">
                   <svg className="previewEmptyIcon" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--line)" strokeWidth="1.5"><rect x="3" y="3" width="18" height="18" rx="2" ry="2" /><circle cx="8.5" cy="8.5" r="1.5" /><polyline points="21 15 16 10 5 21" /></svg>
                   <br />
-                  เลือกแถวในตารางด้านซ้าย<br />เพื่อดูตัวอย่างหน้านั้น
+                  Select a row in the table on the left<br />to preview that page.
                 </div>
               ) : (
                 <>
@@ -2080,7 +2090,7 @@ export default function PoChecker() {
                     {activeSelectedPage.thumbDataUrls.map((thumb, idx) => (
                       <div key={idx} className="previewPage">
                         <span className="previewPageNumber">
-                          หน้า {activeSelectedPage.pages[idx]}
+                          Page {activeSelectedPage.pages[idx]}
                         </span>
                         <img
                           className={`previewImage previewZoom${Math.round(previewZoom * 100)}`}
@@ -2093,25 +2103,25 @@ export default function PoChecker() {
                   </div>
                   <div className="previewDetail">
                     <dl>
-                      <dt>หน้า</dt>
+                      <dt>Page</dt>
                       <dd className="mono pageDetailValue">
                         {formatPageRange(activeSelectedPage.pages)} / {filteredResults.length} PO
                       </dd>
-                      <dt>แหล่งข้อความ</dt>
+                      <dt>Text Source</dt>
                       <dd>
-                        {activeSelectedPage.source === 'text-layer' ? 'ข้อความในไฟล์ PDF' : 'OCR (ไม่พบชั้นข้อความ)'}
+                        {activeSelectedPage.source === 'text-layer' ? 'PDF text layer' : 'OCR (no text layer found)'}
                         {activeSelectedPage.source === 'ocr' && activeSelectedPage.ocrConfidence !== null && (
                           <span className={`tag ${activeSelectedPage.ocrConfidence < OCR_LOW_CONFIDENCE ? 'tagReview' : 'tagMatch'} ocrConfidenceTag`}>
-                            ความมั่นใจ OCR {Math.round(activeSelectedPage.ocrConfidence)}%
+                            OCR Confidence {Math.round(activeSelectedPage.ocrConfidence)}%
                           </span>
                         )}
                       </dd>
-                      <dt>ต้นทางจาก PDF</dt><dd className="previewSource">{activeSelectedPage.pdfSource || 'ไม่พบต้นทาง'}</dd>
+                      <dt>Source from PDF</dt><dd className="previewSource">{activeSelectedPage.pdfSource || SOURCE_NOT_FOUND}</dd>
 
-                      <dt>ปลายทางจาก PDF</dt>
+                      <dt>Destination from PDF</dt>
                       <dd>
-                        <span className={`tag destinationTag ${activeSelectedPage.pdfDestination !== 'ไม่พบจังหวัดปลายทาง' ? 'tagMatch' : 'tagMismatch'}`}>
-                          {activeSelectedPage.pdfDestination || 'ไม่พบปลายทาง'}
+                        <span className={`tag destinationTag ${activeSelectedPage.pdfDestination !== DEST_NOT_FOUND ? 'tagMatch' : 'tagMismatch'}`}>
+                          {activeSelectedPage.pdfDestination || DEST_NOT_FOUND}
                         </span>
                       </dd>
                     </dl>

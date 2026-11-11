@@ -1,5 +1,6 @@
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { Analytics } from "@vercel/analytics/next"
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -12,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-  title: "PO Check",
+  title: "Transport PO Sorting Tool",
   description: "ระบบตรวจสอบใบสั่งซื้อสินค้ากับข้อมูลปลายทาง",
   icons: {
     icon: "/po-checking-favicon.svg",
@@ -23,6 +24,7 @@ export const metadata = {
 export default function RootLayout({ children }) {
   return (
     <html>
+      <Analytics/>
       <body className={`${geistSans.variable} ${geistMono.variable}`}>
         {children}
       </body>

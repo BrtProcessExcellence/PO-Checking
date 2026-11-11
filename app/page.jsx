@@ -10,7 +10,7 @@ import { Card } from '../components/ui/card';
 import { Checkbox } from '../components/ui/checkbox';
 import { Select } from '../components/ui/select';
 import { Check, X } from "@deemlol/next-icons"
-import { PDFDocument } from 'pdf-lib';
+// import { PDFDocument } from 'pdf-lib';
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
 
@@ -1406,6 +1406,7 @@ export default function PoChecker() {
           const rowData = {
             id: `page-${pageNumber}`,
             pages: [pageNumber],
+            sourcePages: [p],
             documentIndex,
             rawText,
             source,
@@ -1477,60 +1478,64 @@ export default function PoChecker() {
   const triggerPrint = async (pagesList) => {
     if (!pagesList || pagesList.length === 0 || !pdfFiles.length) return;
 
-    setStatus({ active: true, text: 'กำลังสร้างไฟล์ PDF สำหรับปริ้นต์...', current: 0, total: 100 });
+    setStatus({ active: true, text: 'กำลังเตรียมไฟล์ความละเอียดสูงสำหรับปริ้นต์...', current: 0, total: pagesList.length });
     setIsProcessing(true);
 
     try {
-      // สร้างไฟล์ PDF เปล่าๆ ขึ้นมาใหม่ 1 ไฟล์
-      const newPdfDoc = await PDFDocument.create();
+      const highResPrintPages = [];
       const sortedPages = sortPdfResultsByPage(pagesList);
 
       for (const result of sortedPages) {
-        // หาว่าหน้านี้มาจากไฟล์ PDF ก้อนไหนที่แกอัปโหลดเข้ามา
         const sourceFile = pdfFiles[result.documentIndex];
         if (!sourceFile) continue;
 
-        // โหลดไฟล์ PDF ต้นฉบับนั้นขึ้นมา
+        // ดึงไฟล์ PDF เดิมขึ้นมา
         const fileBuffer = await sourceFile.arrayBuffer();
-        const loadedPdf = await PDFDocument.load(fileBuffer);
+        const pdfDoc = await pdfjsLib.getDocument({ data: fileBuffer, wasmUrl: '/pdfjs/wasm/' }).promise;
 
-        // ดึงเฉพาะหน้ากระดาษที่ต้องการ (pdf-lib นับหน้าเริ่มจาก 0)
-        const pageIndices = result.pages.map(pageNum => pageNum - 1);
-        const copiedPages = await newPdfDoc.copyPages(loadedPdf, pageIndices);
+        const highResImages = [];
+        for (const pageNum of result.sourcePages) {
+          const page = await pdfDoc.getPage(pageNum);
 
-        // แปะหน้าต้นฉบับคมๆ ลงไปในไฟล์ PDF ใหม่
-        copiedPages.forEach((page) => newPdfDoc.addPage(page));
+          const viewport = page.getViewport({ scale: 5.0 });
+          const canvas = document.createElement('canvas');
+          canvas.width = Math.floor(viewport.width);
+          canvas.height = Math.floor(viewport.height);
+          const ctx = canvas.getContext('2d');
+
+          // เทพื้นสีขาวป้องกันพื้นหลังโปร่งใส
+          ctx.fillStyle = '#ffffff';
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+          await page.render({ canvasContext: ctx, viewport }).promise;
+
+          // แปลงเป็นรูป JPEG คุณภาพสูง
+          highResImages.push(canvas.toDataURL('image/jpeg', 0.95));
+        }
+
+        highResPrintPages.push({
+            id: result.id,
+            pages: result.pages,
+            highResUrls: highResImages
+        });
       }
 
-      const pdfBytes = await newPdfDoc.save();
-      const blob = new Blob([pdfBytes], { type: 'application/pdf' });
-      const url = URL.createObjectURL(blob);
+      // ยัดรูปความละเอียดสูงลง State ให้ React เตรียมแสดงผล
+      setPrintPagesList(highResPrintPages);
 
-      // 🎯 สร้าง iframe แบบล่องหน เพื่อโหลด PDF ไว้หลังฉาก
-      const iframe = document.createElement('iframe');
-      iframe.style.display = 'none';
-      iframe.src = url;
-      document.body.appendChild(iframe);
+      // รอให้เบราว์เซอร์วาดรูปเสร็จ (1 วินาที) แล้วเด้งหน้าต่างปริ้นต์แบบทับหน้าปัจจุบัน
+      setTimeout(() => {
+        window.print();
+        setStatus({ active: false, text: '', current: 0, total: 0 });
+        setIsProcessing(false);
 
-      // พอ PDF โหลดเสร็จปุ๊บ สั่งเด้ง Print Dialog ในหน้าปัจจุบันทันที
-      iframe.onload = () => {
-        setTimeout(() => {
-          iframe.contentWindow.focus();
-          iframe.contentWindow.print();
+        // เคลียร์รูปความละเอียดสูงทิ้งหลังปริ้นต์เสร็จ คืนแรมให้คอมพิวเตอร์
+        setTimeout(() => setPrintPagesList([]), 1000);
+      }, 1000);
 
-          // ตั้งเวลาทำความสะอาด ลบ iframe ล่องหนและคืนแรมทิ้ง (เผื่อเวลาให้หน้า Print โหลด 1 นาที)
-          setTimeout(() => {
-            if (document.body.contains(iframe)) {
-              document.body.removeChild(iframe);
-              URL.revokeObjectURL(url);
-            }
-          }, 60000);
-        }, 150);
-      };
     } catch (error) {
       console.error('Print Error:', error);
-      alert('เกิดข้อผิดพลาดในการสร้างไฟล์ PDF สำหรับปริ้นต์');
-    } finally {
+      alert('เกิดข้อผิดพลาดในการเตรียมไฟล์ปริ้นต์');
       setStatus({ active: false, text: '', current: 0, total: 0 });
       setIsProcessing(false);
     }
@@ -2129,10 +2134,10 @@ export default function PoChecker() {
 
       <div className="printArea">
         {printPagesList
-          .flatMap(p => p.thumbDataUrls.map((thumb, idx) => ({ thumb, pageNum: p.pages[idx] })))
+          .flatMap(p => p.highResUrls ? p.highResUrls.map((url, idx) => ({ url, pageNum: p.pages[idx] })) : [])
           .map((item, i) => (
             <div key={i} className="printPage">
-              {item.thumb && <img src={item.thumb} alt={`Print Page ${item.pageNum}`} />}
+              {item.url && <img src={item.url} alt={`Print Page ${item.pageNum}`} style={{ width: '100%', height: 'auto' }} />}
             </div>
           ))}
       </div>
